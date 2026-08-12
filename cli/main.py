@@ -51,14 +51,22 @@ def main():
         intent_data = intent_res["intent"]
         ui.render_intent(intent_data, elapsed=t_intent_elapsed)
 
-        # Check if input is a task execution command vs casual chat/greeting
+        # Category Routing: TASK | CONVERSATION | CLARIFICATION
+        category = intent_data.get("category", "TASK").upper()
         is_task = intent_data.get("is_task", True)
         task_type = intent_data.get("task_type", "").lower()
         direct_resp = intent_data.get("direct_response")
 
-        if not is_task or task_type in ("chat", "general_chat"):
+        # 1. CONVERSATION
+        if category == "CONVERSATION" or (not is_task and category != "CLARIFICATION" and task_type in ("chat", "general_chat")):
             response_msg = direct_resp or intent_data.get("summary") or "Halo! Ada yang bisa saya bantu dengan proyek Anda hari ini?"
             ui.render_direct_response(response_msg, elapsed=t_intent_elapsed)
+            continue
+
+        # 2. CLARIFICATION
+        if category == "CLARIFICATION" or task_type == "clarification":
+            clarification_msg = direct_resp or intent_data.get("summary") or "Bisakah Anda memberikan penjelasan lebih detail tentang tugas yang ingin dikerjakan?"
+            ui.render_clarification(clarification_msg, elapsed=t_intent_elapsed)
             continue
 
         # Layer 2: Planning Loop with live updating status timer

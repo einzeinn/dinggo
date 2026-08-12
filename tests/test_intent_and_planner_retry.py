@@ -47,6 +47,28 @@ class TestIntentAndPlannerRetry(unittest.TestCase):
         self.assertFalse(res["intent"]["is_task"])
         self.assertEqual(res["intent"]["direct_response"], "Halo! Ada yang bisa saya bantu?")
 
+    def test_intent_parser_categories(self):
+        mock_client = MagicMock()
+        mock_client.generate.side_effect = [
+            {"success": True, "response": '{"category": "TASK", "is_task": true, "summary": "Tambah fungsi", "task_type": "edit_file"}'},
+            {"success": True, "response": '{"category": "CONVERSATION", "is_task": false, "summary": "Salam", "direct_response": "Halo juga!"}'},
+            {"success": True, "response": '{"category": "CLARIFICATION", "is_task": false, "summary": "Ambigu", "direct_response": "File mana yang ingin diubah?"}'}
+        ]
+
+        parser = IntentParser(ollama_client=mock_client)
+        
+        r1 = parser.parse("Ubah file utils.py")
+        self.assertEqual(r1["intent"]["category"], "TASK")
+        self.assertTrue(r1["intent"]["is_task"])
+
+        r2 = parser.parse("Halo bro")
+        self.assertEqual(r2["intent"]["category"], "CONVERSATION")
+        self.assertFalse(r2["intent"]["is_task"])
+
+        r3 = parser.parse("Perbaiki kodenya dong")
+        self.assertEqual(r3["intent"]["category"], "CLARIFICATION")
+        self.assertEqual(r3["intent"]["direct_response"], "File mana yang ingin diubah?")
+
     def test_planner_repair_retry(self):
         mock_client = MagicMock()
         # Attempt 1: Invalid schema missing required fields

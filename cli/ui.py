@@ -95,12 +95,21 @@ class TerminalUI:
         self.console.print(f"\n{badge} [italic]{message}[/italic]")
 
     def render_intent(self, intent_data: Dict[str, Any], elapsed: Optional[float] = None):
-        """Displays structured intent parse summary with optional timer."""
+        """Displays structured intent parse summary with optional timer and category badge."""
         summary = intent_data.get("summary", "")
+        category = intent_data.get("category", "TASK").upper()
         task_type = intent_data.get("task_type", "")
         scope = ", ".join(intent_data.get("target_scope", [])) or "Semua project"
 
+        cat_styles = {
+            "TASK": "[bold yellow]TASK[/bold yellow]",
+            "CONVERSATION": "[bold cyan]CONVERSATION[/bold cyan]",
+            "CLARIFICATION": "[bold magenta]CLARIFICATION[/bold magenta]"
+        }
+        cat_badge = cat_styles.get(category, f"[bold white]{category}[/bold white]")
+
         text = (
+            f"[bold]Kategori:[/bold] {cat_badge}\n"
             f"[bold]Maksud:[/bold] {summary}\n"
             f"[bold]Tipe Task:[/bold] [cyan]{task_type}[/cyan]\n"
             f"[bold]Target Scope:[/bold] [yellow]{scope}[/yellow]"
@@ -115,6 +124,15 @@ class TerminalUI:
             Text(message, style="bold cyan"),
             title=f"[bold cyan]💬 Response[/bold cyan]{timer_str}",
             border_style="cyan"
+        ))
+
+    def render_clarification(self, message: str, elapsed: Optional[float] = None):
+        """Displays clarification request panel when user prompt is ambiguous."""
+        timer_str = f" [dim magenta](⏱️ {elapsed:.2f}s)[/dim magenta]" if elapsed is not None else ""
+        self.console.print(Panel(
+            Text(message, style="bold yellow"),
+            title=f"[bold yellow]❓ Clarification Required[/bold yellow]{timer_str}",
+            border_style="yellow"
         ))
 
     def render_plan(self, plan_data: Dict[str, Any], elapsed: Optional[float] = None):
