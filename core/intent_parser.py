@@ -79,12 +79,16 @@ class IntentParser:
             "Format: {\"task_type\": \"...\", \"target_scope\": [], \"summary\": \"...\", \"constraints\": []}"
         )
 
-    def parse(self, user_prompt: str) -> Dict[str, Any]:
+    def parse(self, user_prompt: str, short_term_context: Optional[str] = None) -> Dict[str, Any]:
         """
         Parses prompt into validated IntentSchema dictionary.
         Executes retry-with-repair loop if LLM outputs malformed JSON.
+        Supports optional short-term conversation context injection.
         """
-        current_prompt = user_prompt
+        if short_term_context and short_term_context.strip():
+            current_prompt = f"[Riwayat Percakapan Terakhir]\n{short_term_context}\n\n[Instruksi Baru Pengguna]\n{user_prompt}"
+        else:
+            current_prompt = user_prompt
         last_error = ""
 
         for attempt in range(1, self.max_retries + 1):

@@ -185,3 +185,16 @@ class OllamaClient:
             }
         except Exception as e:
             return {"success": False, "error": f"Gagal menghubungi Ollama ({resolved_model}): {str(e)}"}
+
+    def get_embedding(self, text: str, model: Optional[str] = None) -> List[float]:
+        """Generates vector embedding for text using Ollama /api/embeddings or /api/embed."""
+        target_model = self.resolve_model_name(model or "nomic-embed-text")
+        payload = {"model": target_model, "prompt": text}
+        try:
+            res = httpx.post(f"{self.base_url}/api/embeddings", json=payload, timeout=15.0)
+            if res.status_code == 200:
+                data = res.json()
+                return data.get("embedding", [])
+        except Exception:
+            pass
+        return []

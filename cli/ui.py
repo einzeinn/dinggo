@@ -228,6 +228,22 @@ class TerminalUI:
                 border_style="red"
             ))
 
+    def render_memory_status(self, context_info: Dict[str, Any], short_memory_str: str, graph_info_str: str):
+        """Displays project memory details and storage location."""
+        info_text = (
+            f"[bold yellow]Proyek:[/bold yellow] [green]{context_info.get('project_name')}[/green] ({context_info.get('project_hash')})\n"
+            f"[bold yellow]Lokasi Simpanan Memori Global:[/bold yellow] [dim]{context_info.get('storage_dir')}[/dim]\n\n"
+            f"[bold cyan]🧠 Short-Term Memory (Riwayat 10 Percakapan Terakhir):[/bold cyan]\n"
+            f"{short_memory_str}\n\n"
+            f"[bold magenta]🕸️ Long-Term Memory (Code Knowledge Graph & Embeddings):[/bold magenta]\n"
+            f"{graph_info_str}"
+        )
+        self.console.print(Panel(
+            Text.from_markup(info_text),
+            title="[bold green]🧠 Dinggo Memory System Status[/bold green]",
+            border_style="green"
+        ))
+
     def get_user_prompt(self) -> str:
         """Gets user prompt input using prompt_toolkit with history."""
         try:

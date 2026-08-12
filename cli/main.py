@@ -7,6 +7,7 @@ from core.ollama_client import OllamaClient
 from core.intent_parser import IntentParser
 from core.planner import Planner
 from core.executor import Executor
+from core.memory import ProjectContext, ShortTermMemory, LongTermMemory
 from cli.ui import TerminalUI
 
 
@@ -24,6 +25,14 @@ def main():
         )
         sys.exit(1)
 
+    # Initialize Memory System (Global Storage under ~/.dinggo/memory/<project>)
+    project_context = ProjectContext(working_dir)
+    short_term_memory = ShortTermMemory(project_context)
+    long_term_memory = LongTermMemory(project_context, ollama_client)
+    
+    # Build Code Knowledge Graph for current workspace
+    long_term_memory.build_code_graph()
+
     intent_parser = IntentParser(ollama_client=ollama_client)
     planner = Planner(ollama_client=ollama_client)
     executor = Executor(
@@ -31,7 +40,7 @@ def main():
         confirm_command_callback=ui.confirm_shell_command
     )
 
-    ui.console.print("[dim]Ketik 'exit' atau 'keluar' untuk mengakhiri sesi.[/dim]")
+    ui.console.print("[dim]Ketik '/memory' untuk cek memori, '/clear' untuk reset riwayat, atau 'exit' untuk mengakhiri sesi.[/dim]")
 
     while True:
         user_input = ui.get_user_prompt()
@@ -39,9 +48,25 @@ def main():
             ui.console.print("[bold cyan]Sampai jumpa! Dinggo CLI selesai.[/bold cyan]")
             break
 
-        # Layer 1: Intent Parsing with live updating status timer
+        # Handle built-in slash commands
+        if user_input.lower() == "/memory":
+            ui.render_memory_status(
+                context_info=project_context.get_info(),
+                short_memory_str=short_term_memory.get_formatted_context(),
+                graph_info_str=long_term_memory.get_formatted_graph_context()
+            )
+            continue
+        elif user_input.lower() == "/clear":
+            short_term_memory.clear()
+            ui.console.print("[bold yellow]🧹 Short-Term Memory percakapan telah dibersihkan.[/bold yellow]")
+            continue
+
+        # Get active short-term conversation context
+        short_term_ctx = short_term_memory.get_formatted_context()
+
+        # Layer 1: Intent Parsing with live updating status timer & memory
         with ui.live_status("intent", "Mencerna maksud dan target instruksi...") as timer_intent:
-            intent_res = intent_parser.parse(user_input)
+            intent_res = intent_parser.parse(user_input, short_term_context=short_term_ctx)
         t_intent_elapsed = timer_intent["elapsed"]
 
         if not intent_res["success"]:
@@ -56,20 +81,39 @@ def main():
         is_task = intent_data.get("is_task", True)
         task_type = intent_data.get("task_type", "").lower()
         direct_resp = intent_data.get("direct_response")
+        summary = intent_data.get("summary", "")
+        target_scope = intent_data.get("target_scope", [])
 
         # 1. CONVERSATION
         if category == "CONVERSATION" or (not is_task and category != "CLARIFICATION" and task_type in ("chat", "general_chat")):
-            response_msg = direct_resp or intent_data.get("summary") or "Halo! Ada yang bisa saya bantu dengan proyek Anda hari ini?"
+            response_msg = direct_resp or summary or "Halo! Ada yang bisa saya bantu dengan proyek Anda hari ini?"
             ui.render_direct_response(response_msg, elapsed=t_intent_elapsed)
+            short_term_memory.add_turn(
+                prompt=user_input,
+                category="CONVERSATION",
+                summary=summary,
+                target_scope=target_scope,
+                direct_response=response_msg
+            )
             continue
 
         # 2. CLARIFICATION
         if category == "CLARIFICATION" or task_type == "clarification":
-            clarification_msg = direct_resp or intent_data.get("summary") or "Bisakah Anda memberikan penjelasan lebih detail tentang tugas yang ingin dikerjakan?"
+            clarification_msg = direct_resp or summary or "Bisakah Anda memberikan penjelasan lebih detail tentang tugas yang ingin dikerjakan?"
             ui.render_clarification(clarification_msg, elapsed=t_intent_elapsed)
+            short_term_memory.add_turn(
+                prompt=user_input,
+                category="CLARIFICATION",
+                summary=summary,
+                target_scope=target_scope,
+                direct_response=clarification_msg
+            )
             continue
 
-        # Layer 2: Planning Loop with live updating status timer
+        # Get active long-term code graph context
+        long_term_ctx = long_term_memory.get_formatted_graph_context()
+
+        # Layer 2: Planning Loop with live updating status timer & memory
         revision_feedback: Optional[str] = None
         plan_approved = False
         final_plan = None
@@ -80,6 +124,8 @@ def main():
             with ui.live_status("planner", status_msg) as timer_plan:
                 plan_res = planner.create_plan(
                     intent_data=intent_data,
+                    short_term_context=short_term_ctx,
+                    long_term_context=long_term_ctx,
                     revision_feedback=revision_feedback
                 )
             t_plan_elapsed = timer_plan["elapsed"]
@@ -108,6 +154,8 @@ def main():
         steps = final_plan.get("steps", [])
 
         completed_count = 0
+        execution_summaries = []
+
         for step in steps:
             step_num = step.get("step_number", 0)
             action = step.get("action_type", "")
@@ -124,11 +172,27 @@ def main():
 
             if res["success"]:
                 completed_count += 1
+                execution_summaries.append(f"Step {step_num} [{action}]: Berhasil")
             else:
+                execution_summaries.append(f"Step {step_num} [{action}]: Gagal ({res.get('error')})")
                 ui.console.print(f"[bold red]Proses terhenti di step {step_num} karena terjadi kesalahan.[/bold red]")
                 break
 
         t_exec_total = round(time.time() - t_exec_start, 2)
+        exec_full_summary = f"{completed_count}/{len(steps)} langkah sukses. (" + ", ".join(execution_summaries) + ")"
+        
+        # Save completed task to Short-Term Memory
+        short_term_memory.add_turn(
+            prompt=user_input,
+            category="TASK",
+            summary=summary,
+            target_scope=target_scope,
+            execution_summary=exec_full_summary
+        )
+
+        # Refresh Code Knowledge Graph after file modifications
+        long_term_memory.build_code_graph()
+
         ui.console.print(f"\n[bold green]✨ Selesai: {completed_count}/{len(steps)} langkah telah dieksekusi.[/bold green] [dim cyan](⏱️ Total Eksekusi: {t_exec_total:.2f}s)[/dim cyan]")
 
 

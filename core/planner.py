@@ -63,6 +63,8 @@ class Planner:
         self,
         intent_data: Dict[str, Any],
         project_context: Optional[str] = None,
+        short_term_context: Optional[str] = None,
+        long_term_context: Optional[str] = None,
         revision_feedback: Optional[str] = None
     ) -> Dict[str, Any]:
         """
@@ -70,8 +72,12 @@ class Planner:
         Handles thinking tags and executes repair retry loop.
         """
         prompt_content = f"Intent Parsed:\n{json.dumps(intent_data, ensure_ascii=False, indent=2)}\n"
+        if short_term_context and short_term_context.strip():
+            prompt_content += f"\n[Riwayat Percakapan Terakhir (Short-Term Memory)]:\n{short_term_context}\n"
+        if long_term_context and long_term_context.strip():
+            prompt_content += f"\n[Struktur & Graph Kode Proyek (Long-Term Memory)]:\n{long_term_context}\n"
         if project_context:
-            prompt_content += f"\nKonteks Proyek:\n{project_context}\n"
+            prompt_content += f"\nKonteks Tambahan Proyek:\n{project_context}\n"
         if revision_feedback:
             prompt_content += f"\nMasukan/Revisi dari Pengguna:\n{revision_feedback}\n"
 
