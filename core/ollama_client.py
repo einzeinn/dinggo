@@ -89,10 +89,17 @@ class OllamaClient:
         json_format: bool = False,
         temperature: float = 0.2,
         top_p: float = 0.9,
-        num_ctx: Optional[int] = None
+        num_ctx: Optional[int] = None,
+        num_predict: Optional[int] = None,
+        think: Optional[bool] = None
     ) -> Dict[str, Any]:
         """
         Sends generation request to Ollama with auto-resolved model tag name.
+
+        `think`: pass True/False to explicitly control Ollama's native reasoning
+        separation (newer Ollama versions return reasoning content in a separate
+        `thinking` field for reasoning-capable models like Qwen3.x, instead of
+        inline <think> tags). Leave None to use the model's default behavior.
         """
         resolved_model = self.resolve_model_name(model)
 
@@ -105,6 +112,10 @@ class OllamaClient:
         }
         if num_ctx:
             options["num_ctx"] = num_ctx
+        # -1 = generate until natural stop / context limit instead of Ollama's
+        # short default num_predict, which can truncate a reasoning model mid-think
+        # and leave "response" empty.
+        options["num_predict"] = num_predict if num_predict is not None else -1
 
         payload: Dict[str, Any] = {
             "model": resolved_model,
@@ -119,18 +130,36 @@ class OllamaClient:
         if json_format:
             payload["format"] = "json"
 
+        if think is not None:
+            payload["think"] = think
+
         try:
             response = httpx.post(
                 f"{self.base_url}/api/generate",
                 json=payload,
-                timeout=120.0
+                timeout=180.0
             )
             response.raise_for_status()
             data = response.json()
             self.active_model = resolved_model
+
+            response_text = data.get("response", "")
+            thinking_text = data.get("thinking", "")
+
+            # Newer Ollama separates reasoning into `thinking` for models like
+            # Qwen3.x. If the model burned its whole budget reasoning and never
+            # emitted a final `response`, fall back to `thinking` so callers at
+            # least have something to try to parse instead of an empty string.
+            used_thinking_fallback = False
+            if not response_text.strip() and thinking_text.strip():
+                response_text = thinking_text
+                used_thinking_fallback = True
+
             return {
                 "success": True,
-                "response": data.get("response", ""),
+                "response": response_text,
+                "thinking": thinking_text,
+                "used_thinking_fallback": used_thinking_fallback,
                 "done": data.get("done", True)
             }
         except httpx.HTTPStatusError as e:

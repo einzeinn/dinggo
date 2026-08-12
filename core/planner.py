@@ -94,6 +94,7 @@ class Planner:
                 prompt=prompt_to_send,
                 system_prompt=self.system_prompt,
                 json_format=True,
+                think=False,
                 temperature=0.2,
                 num_ctx=8192
             )

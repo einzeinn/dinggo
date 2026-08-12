@@ -91,6 +91,7 @@ class IntentParser:
                 prompt=prompt_to_send,
                 system_prompt=self.system_prompt,
                 json_format=True,
+                think=False,
                 temperature=0.1
             )
 
