@@ -117,6 +117,20 @@ class OllamaClient:
         # and leave "response" empty.
         options["num_predict"] = num_predict if num_predict is not None else -1
 
+        num_gpu = os.getenv("OLLAMA_NUM_GPU", "99")
+        if num_gpu:
+            try:
+                options["num_gpu"] = int(num_gpu)
+            except ValueError:
+                pass
+
+        num_thread = os.getenv("OLLAMA_NUM_THREAD")
+        if num_thread:
+            try:
+                options["num_thread"] = int(num_thread)
+            except ValueError:
+                pass
+
         payload: Dict[str, Any] = {
             "model": resolved_model,
             "prompt": prompt,
