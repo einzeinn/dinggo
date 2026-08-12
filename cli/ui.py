@@ -13,18 +13,29 @@ from rich.table import Table
 from rich.prompt import Prompt
 from prompt_toolkit import PromptSession
 from prompt_toolkit.history import FileHistory
+from prompt_toolkit.completion import WordCompleter
 
 
 class TerminalUI:
     """
     Terminal UI Renderer using Rich and PromptToolkit.
-    Enforces design specifications from docs/08-design.md with live updating timer badges.
+    Enforces design specifications from docs/08-design.md with live updating timer badges and slash commands UI.
     """
 
     def __init__(self):
+        if hasattr(sys.stdout, "reconfigure"):
+            try:
+                sys.stdout.reconfigure(encoding="utf-8")
+            except Exception:
+                pass
         self.console = Console()
         history_path = os.path.expanduser("~/.dinggo_history")
-        self.session = PromptSession(history=FileHistory(history_path))
+        slash_commands = ["/help", "/config", "/models", "/memory", "/status", "/clear", "/compact", "/exit", "exit", "keluar"]
+        completer = WordCompleter(slash_commands, ignore_case=True)
+        try:
+            self.session = PromptSession(history=FileHistory(history_path), completer=completer)
+        except Exception:
+            self.session = None
 
     def render_banner(self, working_dir: str):
         """Displays ASCII logo banner & active working directory."""
@@ -244,9 +255,86 @@ class TerminalUI:
             border_style="green"
         ))
 
+    def render_help(self):
+        """Displays interactive Slash Commands & Settings Help Menu."""
+        table = Table(show_header=True, header_style="bold cyan", box=None, expand=True)
+        table.add_column("Perintah / Slash Command", style="bold yellow", width=22)
+        table.add_column("Keterangan & Fungsi", style="white")
+
+        table.add_row("/help, /?", "Menampilkan daftar perintah slash & bantuan ini")
+        table.add_row("/config, /settings", "Melihat & mengonfigurasi pengaturan aktif (Model, Temp, GPU, Thread)")
+        table.add_row("/models", "Daftar model Ollama lokal & pemetaan layer aktif")
+        table.add_row("/memory", "Melihat status memori proyek (Short-term & Code Graph)")
+        table.add_row("/status", "Melihat status lingkungan (Git branch, Ollama, GPU offload)")
+        table.add_row("/clear", "Membersihkan riwayat percakapan short-term & layar terminal")
+        table.add_row("/compact", "Meringkas (compact) riwayat memori percakapan")
+        table.add_row("/exit, exit, keluar", "Keluar dari sesi Dinggo CLI IDE")
+
+        self.console.print(Panel(
+            table,
+            title="[bold cyan]💡 Menu Perintah & Slash Commands Dinggo CLI[/bold cyan]",
+            border_style="cyan"
+        ))
+
+    def render_config(self, config_dict: Dict[str, Any]):
+        """Displays active configuration table."""
+        table = Table(show_header=True, header_style="bold yellow", box=None, expand=True)
+        table.add_column("Parameter Konfigurasi", style="bold cyan", width=30)
+        table.add_column("Nilai Aktif", style="bold green")
+
+        for key, val in config_dict.items():
+            table.add_row(key, str(val))
+
+        self.console.print(Panel(
+            table,
+            title="[bold yellow]⚙️ Pengaturan & Konfigurasi Aktif (.env)[/bold yellow]",
+            border_style="yellow"
+        ))
+
+    def render_models(self, installed_models: List[str], active_models: Dict[str, str]):
+        """Displays installed Ollama models and active layer assignments."""
+        table = Table(show_header=True, header_style="bold magenta", box=None, expand=True)
+        table.add_column("Layer Orchestration", style="bold yellow", width=22)
+        table.add_column("Model Aktif Termanfaatkan", style="bold cyan")
+
+        for layer, model in active_models.items():
+            table.add_row(layer, model)
+
+        installed_str = ", ".join([f"[green]{m}[/green]" for m in installed_models]) if installed_models else "[red]Tidak ada model terdeteksi[/red]"
+        
+        content = (
+            f"[bold white]Model Terpasang di Ollama Lokal ({len(installed_models)}):[/bold white]\n"
+            f"{installed_str}\n\n"
+        )
+        
+        self.console.print(Panel(
+            table,
+            title="[bold magenta]🤖 Status Model LLM & Alokasi Layer[/bold magenta]",
+            border_style="magenta",
+            subtitle=f"[dim]Total {len(installed_models)} Model Tersedia[/dim]"
+        ))
+
+    def render_status(self, status_dict: Dict[str, Any]):
+        """Displays environment & system status dashboard."""
+        status_text = (
+            f"[bold yellow]Direktori Kerja (Root):[/bold yellow] [green]{status_dict.get('working_dir')}[/green]\n"
+            f"[bold yellow]Git Branch:[/bold yellow] [cyan]{status_dict.get('git_branch')}[/cyan]\n"
+            f"[bold yellow]Ollama Service Status:[/bold yellow] [{'green' if status_dict.get('ollama_online') else 'red'}]{'ONLINE ✅' if status_dict.get('ollama_online') else 'OFFLINE ❌'}[/{'green' if status_dict.get('ollama_online') else 'red'}] ({status_dict.get('ollama_url')})\n"
+            f"[bold yellow]GPU Offload Layers:[/bold yellow] [magenta]num_gpu = {status_dict.get('gpu_offload')}[/magenta]\n"
+            f"[bold yellow]CPU Thread Limit:[/bold yellow] [magenta]num_thread = {status_dict.get('cpu_threads')}[/magenta]\n"
+            f"[bold yellow]Riwayat Short-Term Memory:[/bold yellow] [cyan]{status_dict.get('memory_turns')} turn terdaftar[/cyan]"
+        )
+        self.console.print(Panel(
+            Text.from_markup(status_text),
+            title="[bold green]📊 Dinggo CLI Environment Status[/bold green]",
+            border_style="green"
+        ))
+
     def get_user_prompt(self) -> str:
-        """Gets user prompt input using prompt_toolkit with history."""
+        """Gets user prompt input using prompt_toolkit with history and slash command completion."""
         try:
-            return self.session.prompt("\ndinggo > ").strip()
+            if self.session:
+                return self.session.prompt("\ndinggo > ").strip()
+            return input("\ndinggo > ").strip()
         except (KeyboardInterrupt, EOFError):
             return "exit"

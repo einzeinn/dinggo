@@ -9,6 +9,7 @@ from core.planner import Planner
 from core.executor import Executor
 from core.memory import ProjectContext, ShortTermMemory, LongTermMemory
 from cli.ui import TerminalUI
+from cli.commands import SlashCommandHandler
 
 
 def main():
@@ -33,6 +34,15 @@ def main():
     # Build Code Knowledge Graph for current workspace
     long_term_memory.build_code_graph()
 
+    # Initialize Slash Command Handler
+    cmd_handler = SlashCommandHandler(
+        ui=ui,
+        ollama_client=ollama_client,
+        project_context=project_context,
+        short_term_memory=short_term_memory,
+        long_term_memory=long_term_memory
+    )
+
     intent_parser = IntentParser(ollama_client=ollama_client)
     planner = Planner(ollama_client=ollama_client)
     executor = Executor(
@@ -40,7 +50,7 @@ def main():
         confirm_command_callback=ui.confirm_shell_command
     )
 
-    ui.console.print("[dim]Ketik '/memory' untuk cek memori, '/clear' untuk reset riwayat, atau 'exit' untuk mengakhiri sesi.[/dim]")
+    ui.console.print("[dim]Ketik '/help' untuk melihat perintah slash, atau 'exit' untuk mengakhiri sesi.[/dim]")
 
     while True:
         user_input = ui.get_user_prompt()
@@ -48,18 +58,10 @@ def main():
             ui.console.print("[bold cyan]Sampai jumpa! Dinggo CLI selesai.[/bold cyan]")
             break
 
-        # Handle built-in slash commands
-        if user_input.lower() == "/memory":
-            ui.render_memory_status(
-                context_info=project_context.get_info(),
-                short_memory_str=short_term_memory.get_formatted_context(),
-                graph_info_str=long_term_memory.get_formatted_graph_context()
-            )
-            continue
-        elif user_input.lower() == "/clear":
-            short_term_memory.clear()
-            ui.console.print("[bold yellow]🧹 Short-Term Memory percakapan telah dibersihkan.[/bold yellow]")
-            continue
+        # Handle Slash Commands (/help, /config, /models, /status, /memory, /clear, /compact)
+        if user_input.startswith("/") or user_input.lower() in ("help", "config", "models", "status", "memory", "clear", "compact"):
+            if cmd_handler.handle_command(user_input):
+                continue
 
         # Get active short-term conversation context
         short_term_ctx = short_term_memory.get_formatted_context()
