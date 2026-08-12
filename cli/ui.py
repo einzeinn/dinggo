@@ -15,7 +15,7 @@ from prompt_toolkit.history import FileHistory
 class TerminalUI:
     """
     Terminal UI Renderer using Rich and PromptToolkit.
-    Enforces design specifications from docs/08-design.md.
+    Enforces design specifications from docs/08-design.md with timer badges.
     """
 
     def __init__(self):
@@ -55,8 +55,8 @@ class TerminalUI:
         badge, color = badges.get(layer.lower(), ("ℹ️ ", "white"))
         self.console.print(f"\n{badge} [italic]{message}[/italic]")
 
-    def render_intent(self, intent_data: Dict[str, Any]):
-        """Displays structured intent parse summary."""
+    def render_intent(self, intent_data: Dict[str, Any], elapsed: Optional[float] = None):
+        """Displays structured intent parse summary with optional timer."""
         summary = intent_data.get("summary", "")
         task_type = intent_data.get("task_type", "")
         scope = ", ".join(intent_data.get("target_scope", [])) or "Semua project"
@@ -66,18 +66,20 @@ class TerminalUI:
             f"[bold]Tipe Task:[/bold] [cyan]{task_type}[/cyan]\n"
             f"[bold]Target Scope:[/bold] [yellow]{scope}[/yellow]"
         )
-        self.console.print(Panel(Text.from_markup(text), title="[bold blue]Structured Intent[/bold blue]", border_style="blue"))
+        timer_str = f" [dim cyan](⏱️ {elapsed:.2f}s)[/dim cyan]" if elapsed is not None else ""
+        self.console.print(Panel(Text.from_markup(text), title=f"[bold blue]Structured Intent[/bold blue]{timer_str}", border_style="blue"))
 
-    def render_direct_response(self, message: str):
-        """Displays direct casual response for non-task inputs without planner/execution flow."""
+    def render_direct_response(self, message: str, elapsed: Optional[float] = None):
+        """Displays direct casual response for non-task inputs with timer."""
+        timer_str = f" [dim cyan](⏱️ {elapsed:.2f}s)[/dim cyan]" if elapsed is not None else ""
         self.console.print(Panel(
             Text(message, style="bold cyan"),
-            title="[bold cyan]💬 Response[/bold cyan]",
+            title=f"[bold cyan]💬 Response[/bold cyan]{timer_str}",
             border_style="cyan"
         ))
 
-    def render_plan(self, plan_data: Dict[str, Any]):
-        """Displays numbered plan steps in a styled panel."""
+    def render_plan(self, plan_data: Dict[str, Any], elapsed: Optional[float] = None):
+        """Displays numbered plan steps in a styled panel with optional timer."""
         summary = plan_data.get("intent_summary", "Rencana Eksekusi")
         steps = plan_data.get("steps", [])
 
@@ -94,9 +96,10 @@ class TerminalUI:
             target = step.get("target_path") or step.get("command") or "-"
             table.add_row(no, action, desc, target)
 
+        timer_str = f" [dim magenta](⏱️ {elapsed:.2f}s)[/dim magenta]" if elapsed is not None else ""
         panel = Panel(
             table,
-            title=f"[bold magenta]📋 Plan: {summary}[/bold magenta]",
+            title=f"[bold magenta]📋 Plan: {summary}[/bold magenta]{timer_str}",
             border_style="magenta",
             expand=False
         )
@@ -150,16 +153,17 @@ class TerminalUI:
             border_style="green"
         ))
 
-    def render_step_result(self, step_num: int, action: str, result: Dict[str, Any]):
-        """Displays step completion checklist icon & output/error."""
+    def render_step_result(self, step_num: int, action: str, result: Dict[str, Any], elapsed: Optional[float] = None):
+        """Displays step completion checklist icon, output/error, and execution timer."""
+        timer_str = f" [dim green](⏱️ {elapsed:.2f}s)[/dim green]" if elapsed is not None else ""
         if result["success"]:
-            self.console.print(f"[bold green]  ✓ Step {step_num} [{action}]: Selesai[/bold green]")
+            self.console.print(f"[bold green]  ✓ Step {step_num} [{action}]: Selesai[/bold green]{timer_str}")
             if result.get("diff"):
                 self.render_diff(result.get("target_path", "file"), result["diff"])
             elif result.get("output") and len(result["output"]) < 300:
                 self.console.print(f"    [dim]{result['output']}[/dim]")
         else:
-            self.console.print(f"[bold red]  ✗ Step {step_num} [{action}]: Gagal[/bold red]")
+            self.console.print(f"[bold red]  ✗ Step {step_num} [{action}]: Gagal[/bold red]{timer_str}")
             err_msg = result.get("error") or result.get("output") or "Error tidak diketahui"
             self.console.print(Panel(
                 Text(err_msg, style="bold red"),
@@ -169,7 +173,6 @@ class TerminalUI:
 
     def get_user_prompt(self) -> str:
         """Gets user prompt input using prompt_toolkit with history."""
-
         try:
             return self.session.prompt("\ndinggo > ").strip()
         except (KeyboardInterrupt, EOFError):

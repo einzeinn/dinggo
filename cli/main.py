@@ -1,5 +1,6 @@
 import os
 import sys
+import time
 from typing import Optional
 
 from core.ollama_client import OllamaClient
@@ -39,15 +40,17 @@ def main():
             break
 
         # Layer 1: Intent Parsing
+        t_intent_start = time.time()
         ui.show_status("intent", "Mencerna maksud dan target instruksi...")
         intent_res = intent_parser.parse(user_input)
+        t_intent_elapsed = time.time() - t_intent_start
 
         if not intent_res["success"]:
-            ui.console.print(f"[bold red]❌ Intent Parsing Gagal:[/bold red] {intent_res['error']}")
+            ui.console.print(f"[bold red]❌ Intent Parsing Gagal (⏱️ {t_intent_elapsed:.2f}s):[/bold red] {intent_res['error']}")
             continue
 
         intent_data = intent_res["intent"]
-        ui.render_intent(intent_data)
+        ui.render_intent(intent_data, elapsed=t_intent_elapsed)
 
         # Check if input is a task execution command vs casual chat/greeting
         is_task = intent_data.get("is_task", True)
@@ -56,7 +59,7 @@ def main():
 
         if not is_task or task_type in ("chat", "general_chat"):
             response_msg = direct_resp or intent_data.get("summary") or "Halo! Ada yang bisa saya bantu dengan proyek Anda hari ini?"
-            ui.render_direct_response(response_msg)
+            ui.render_direct_response(response_msg, elapsed=t_intent_elapsed)
             continue
 
         # Layer 2: Planning Loop (supports revision)
@@ -68,17 +71,19 @@ def main():
             status_msg = "Menyusun alur kerja dan penentuan tools..." if not revision_feedback else "Memperbaiki plan sesuai revisi pengguna..."
             ui.show_status("planner", status_msg)
 
+            t_plan_start = time.time()
             plan_res = planner.create_plan(
                 intent_data=intent_data,
                 revision_feedback=revision_feedback
             )
+            t_plan_elapsed = time.time() - t_plan_start
 
             if not plan_res["success"]:
-                ui.console.print(f"[bold red]❌ Planning Gagal:[/bold red] {plan_res['error']}")
+                ui.console.print(f"[bold red]❌ Planning Gagal (⏱️ {t_plan_elapsed:.2f}s):[/bold red] {plan_res['error']}")
                 break
 
             final_plan = plan_res["plan"]
-            ui.render_plan(final_plan)
+            ui.render_plan(final_plan, elapsed=t_plan_elapsed)
 
             choice, rev_text = ui.prompt_confirm_plan()
             if choice == "Y":
@@ -93,6 +98,7 @@ def main():
             continue
 
         # Layer 3: Executor
+        t_exec_start = time.time()
         ui.show_status("executor", "Mulai mengeksekusi langkah-langkah...")
         steps = final_plan.get("steps", [])
 
@@ -107,8 +113,11 @@ def main():
             else:
                 ui.show_status("executor", f"Menjalankan tool {action} ({desc})")
 
+            t_step_start = time.time()
             res = executor.execute_step(step, project_root=working_dir)
-            ui.render_step_result(step_num, action, res)
+            t_step_elapsed = time.time() - t_step_start
+
+            ui.render_step_result(step_num, action, res, elapsed=t_step_elapsed)
 
             if res["success"]:
                 completed_count += 1
@@ -116,7 +125,8 @@ def main():
                 ui.console.print(f"[bold red]Proses terhenti di step {step_num} karena terjadi kesalahan.[/bold red]")
                 break
 
-        ui.console.print(f"\n[bold green]✨ Selesai: {completed_count}/{len(steps)} langkah telah dieksekusi.[/bold green]")
+        t_exec_total = time.time() - t_exec_start
+        ui.console.print(f"\n[bold green]✨ Selesai: {completed_count}/{len(steps)} langkah telah dieksekusi.[/bold green] [dim cyan](⏱️ Total Eksekusi: {t_exec_total:.2f}s)[/dim cyan]")
 
 
 if __name__ == "__main__":
