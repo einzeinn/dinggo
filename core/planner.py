@@ -13,7 +13,7 @@ class PlanStep(BaseModel):
     step_number: int = Field(description="Nomor urut langkah")
     description: str = Field(description="Penjelasan detail tentang apa yang dilakukan di langkah ini")
     action_type: str = Field(
-        description="Jenis aksi: read_file, write_file, list_dir, edit_file, run_command, atau generate_code"
+        description="Jenis aksi: read_file, write_file, list_dir, edit_file, run_command, generate_code, atau general_response"
     )
     target_path: Optional[str] = Field(default=None, description="Path file/dir target jika ada")
     command: Optional[str] = Field(default=None, description="Command shell jika action_type=run_command")

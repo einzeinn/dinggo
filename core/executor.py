@@ -33,6 +33,10 @@ class Executor:
         command = step.get("command")
         instruction = step.get("instruction") or step.get("description", "")
 
+        # Clean target_path if LLM outputs placeholder text like "-", "null", "n/a"
+        if target_path and str(target_path).strip().lower() in ("-", "null", "n/a", "none", ""):
+            target_path = None
+
         if target_path and not os.path.isabs(target_path):
             target_path = os.path.join(project_root, target_path)
 
@@ -46,11 +50,14 @@ class Executor:
             "error": None
         }
 
+        # 0. general_response or fallback for missing file target path
+        if action_type in ("general_response", "respond", "info", "general_task", "none") or (action_type in ("read_file", "write_file", "edit_file", "generate_code") and not target_path):
+            result["success"] = True
+            result["output"] = instruction or step.get("description", "Respon umum selesai.")
+            return result
+
         # 1. read_file
         if action_type == "read_file":
-            if not target_path:
-                result["error"] = "Target path tidak ditentukan untuk read_file"
-                return result
             res = read_file(target_path)
             result["success"] = res["success"]
             if res["success"]:
