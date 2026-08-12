@@ -13,7 +13,23 @@ from rich.table import Table
 from rich.prompt import Prompt
 from prompt_toolkit import PromptSession
 from prompt_toolkit.history import FileHistory
-from prompt_toolkit.completion import WordCompleter
+from prompt_toolkit.completion import Completer, Completion
+
+
+class SlashCompleter(Completer):
+    """
+    Custom completer that ONLY triggers when the input prompt line starts with '/'.
+    Prevents annoying autocomplete popups when typing regular prompts/instructions.
+    """
+    def __init__(self, commands: List[str]):
+        self.commands = commands
+
+    def get_completions(self, document, complete_event):
+        text_before = document.text_before_cursor
+        if text_before.startswith("/"):
+            for cmd in self.commands:
+                if cmd.lower().startswith(text_before.lower()):
+                    yield Completion(cmd, start_position=-len(text_before))
 
 
 class TerminalUI:
@@ -30,8 +46,8 @@ class TerminalUI:
                 pass
         self.console = Console()
         history_path = os.path.expanduser("~/.dinggo_history")
-        slash_commands = ["/help", "/config", "/models", "/memory", "/status", "/clear", "/compact", "/exit", "exit", "keluar"]
-        completer = WordCompleter(slash_commands, ignore_case=True)
+        slash_commands = ["/help", "/config", "/models", "/memory", "/status", "/clear", "/compact", "/exit"]
+        completer = SlashCompleter(slash_commands)
         try:
             self.session = PromptSession(history=FileHistory(history_path), completer=completer)
         except Exception:
