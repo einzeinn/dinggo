@@ -26,6 +26,24 @@ class Executor:
         self.confirm_command_callback = confirm_command_callback
         self.step_progress_callback = step_progress_callback
 
+    def resolve_target_path(self, instruction: str, project_root: str = ".") -> Optional[str]:
+        """
+        Attempts to resolve target file path from instruction or workspace files when Planner outputs null.
+        """
+        inst_lower = instruction.lower()
+        if "markdown" in inst_lower or ".md" in inst_lower or "readme" in inst_lower:
+            for root, dirs, files in os.walk(project_root):
+                dirs[:] = [d for d in dirs if not d.startswith(".") and d not in ("venv", ".venv", "__pycache__")]
+                for f in files:
+                    if f.endswith(".md") and "kesiapan" in f.lower():
+                        return os.path.relpath(os.path.join(root, f), project_root)
+            for root, dirs, files in os.walk(project_root):
+                dirs[:] = [d for d in dirs if not d.startswith(".") and d not in ("venv", ".venv", "__pycache__")]
+                for f in files:
+                    if f.endswith(".md") and f.lower() != "readme.md":
+                        return os.path.relpath(os.path.join(root, f), project_root)
+        return None
+
     def execute_step(self, step: Dict[str, Any], project_root: str = ".") -> Dict[str, Any]:
         """
         Executes a single plan step dictionary with semantic validation & auto-repair loop.
@@ -38,6 +56,12 @@ class Executor:
         # Clean target_path if LLM outputs placeholder text like "-", "null", "n/a"
         if target_path and str(target_path).strip().lower() in ("-", "null", "n/a", "none", ""):
             target_path = None
+
+        # Auto-resolve target_path if missing for file operations
+        if action_type in ("read_file", "write_file", "edit_file", "generate_code") and not target_path:
+            resolved = self.resolve_target_path(instruction, project_root=project_root)
+            if resolved:
+                target_path = resolved
 
         if target_path and not os.path.isabs(target_path):
             target_path = os.path.join(project_root, target_path)
@@ -53,10 +77,16 @@ class Executor:
             "validation": None
         }
 
-        # 0. general_response or fallback for missing file target path
-        if action_type in ("general_response", "respond", "info", "general_task", "none") or (action_type in ("read_file", "write_file", "edit_file", "generate_code") and not target_path):
+        # 0. general_response handling
+        if action_type in ("general_response", "respond", "info", "general_task", "none"):
             result["success"] = True
             result["output"] = instruction or step.get("description", "Respon umum selesai.")
+            return result
+
+        # Fail explicitly if file operation has no resolvable target_path
+        if action_type in ("read_file", "write_file", "edit_file", "generate_code") and not target_path:
+            result["success"] = False
+            result["error"] = f"Gagal eksekusi [{action_type}]: Target path file tidak ditentukan oleh Planner dan tidak ditemukan di proyek."
             return result
 
         # 1. read_file
@@ -70,10 +100,6 @@ class Executor:
 
         # 2. write_file / generate_code / edit_file
         elif action_type in ("write_file", "edit_file", "generate_code"):
-            if not target_path:
-                result["error"] = f"Target path tidak ditentukan untuk {action_type}"
-                return result
-            
             existing_code = ""
             if os.path.exists(target_path) and action_type == "edit_file":
                 r_res = read_file(target_path)
@@ -102,7 +128,7 @@ class Executor:
             val_res = self.validator.validate_file(target_path, content=code_content)
             result["validation"] = val_res
 
-            # Auto-Repair Retry Loop if semantic validation failed (e.g. Python code written to .md file)
+            # Auto-Repair Retry Loop if semantic validation failed
             if not val_res["valid"]:
                 repair_attempts = 2
                 for r_attempt in range(1, repair_attempts + 1):
@@ -112,7 +138,7 @@ class Executor:
                         f"Hasil pembuatan sebelumnya GAGAL VALIDASI SEMANTIK:\n"
                         f"Alasan: {val_res['reason']}\n"
                         f"Tindakan Disarankan: {val_res['suggested_action']}\n\n"
-                        f"Hasilkan ulang konten yang murni dan benar 100%!"
+                        f"Hasikan ulang konten yang murni dan benar 100%!"
                     )
                     cg_repair = self.codegen_delegate.generate_code(
                         instruction=repair_instruction,
@@ -152,7 +178,7 @@ class Executor:
             else:
                 result["error"] = res["error"]
 
-        # 4. run_command (Mandatory explicit user confirmation safety guard)
+        # 4. run_command
         elif action_type == "run_command":
             if not command:
                 result["error"] = "Command string tidak ditentukan untuk run_command"
