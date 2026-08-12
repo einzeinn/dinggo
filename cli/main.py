@@ -39,11 +39,10 @@ def main():
             ui.console.print("[bold cyan]Sampai jumpa! Dinggo CLI selesai.[/bold cyan]")
             break
 
-        # Layer 1: Intent Parsing
-        t_intent_start = time.time()
-        ui.show_status("intent", "Mencerna maksud dan target instruksi...")
-        intent_res = intent_parser.parse(user_input)
-        t_intent_elapsed = time.time() - t_intent_start
+        # Layer 1: Intent Parsing with live updating status timer
+        with ui.live_status("intent", "Mencerna maksud dan target instruksi...") as timer_intent:
+            intent_res = intent_parser.parse(user_input)
+        t_intent_elapsed = timer_intent["elapsed"]
 
         if not intent_res["success"]:
             ui.console.print(f"[bold red]❌ Intent Parsing Gagal (⏱️ {t_intent_elapsed:.2f}s):[/bold red] {intent_res['error']}")
@@ -62,21 +61,20 @@ def main():
             ui.render_direct_response(response_msg, elapsed=t_intent_elapsed)
             continue
 
-        # Layer 2: Planning Loop (supports revision)
+        # Layer 2: Planning Loop with live updating status timer
         revision_feedback: Optional[str] = None
         plan_approved = False
         final_plan = None
 
         while not plan_approved:
             status_msg = "Menyusun alur kerja dan penentuan tools..." if not revision_feedback else "Memperbaiki plan sesuai revisi pengguna..."
-            ui.show_status("planner", status_msg)
 
-            t_plan_start = time.time()
-            plan_res = planner.create_plan(
-                intent_data=intent_data,
-                revision_feedback=revision_feedback
-            )
-            t_plan_elapsed = time.time() - t_plan_start
+            with ui.live_status("planner", status_msg) as timer_plan:
+                plan_res = planner.create_plan(
+                    intent_data=intent_data,
+                    revision_feedback=revision_feedback
+                )
+            t_plan_elapsed = timer_plan["elapsed"]
 
             if not plan_res["success"]:
                 ui.console.print(f"[bold red]❌ Planning Gagal (⏱️ {t_plan_elapsed:.2f}s):[/bold red] {plan_res['error']}")
@@ -97,9 +95,8 @@ def main():
         if not plan_approved or not final_plan:
             continue
 
-        # Layer 3: Executor
+        # Layer 3: Executor with live updating step timers
         t_exec_start = time.time()
-        ui.show_status("executor", "Mulai mengeksekusi langkah-langkah...")
         steps = final_plan.get("steps", [])
 
         completed_count = 0
@@ -108,14 +105,12 @@ def main():
             action = step.get("action_type", "")
             desc = step.get("description", "")
 
-            if action in ("write_file", "edit_file", "generate_code"):
-                ui.show_status("codegen", f"Menulis kode Python untuk step {step_num}: {desc}")
-            else:
-                ui.show_status("executor", f"Menjalankan tool {action} ({desc})")
+            layer_name = "codegen" if action in ("write_file", "edit_file", "generate_code") else "executor"
+            step_msg = f"Menulis kode Python untuk step {step_num}: {desc}" if layer_name == "codegen" else f"Menjalankan tool {action} ({desc})"
 
-            t_step_start = time.time()
-            res = executor.execute_step(step, project_root=working_dir)
-            t_step_elapsed = time.time() - t_step_start
+            with ui.live_status(layer_name, step_msg) as timer_step:
+                res = executor.execute_step(step, project_root=working_dir)
+            t_step_elapsed = timer_step["elapsed"]
 
             ui.render_step_result(step_num, action, res, elapsed=t_step_elapsed)
 
@@ -125,7 +120,7 @@ def main():
                 ui.console.print(f"[bold red]Proses terhenti di step {step_num} karena terjadi kesalahan.[/bold red]")
                 break
 
-        t_exec_total = time.time() - t_exec_start
+        t_exec_total = round(time.time() - t_exec_start, 2)
         ui.console.print(f"\n[bold green]✨ Selesai: {completed_count}/{len(steps)} langkah telah dieksekusi.[/bold green] [dim cyan](⏱️ Total Eksekusi: {t_exec_total:.2f}s)[/dim cyan]")
 
 

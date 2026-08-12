@@ -1,6 +1,9 @@
 import os
 import sys
-from typing import Dict, Any, Optional, Tuple, List
+import time
+import threading
+from contextlib import contextmanager
+from typing import Dict, Any, Optional, Tuple, List, Generator
 
 from rich.console import Console
 from rich.panel import Panel
@@ -15,7 +18,7 @@ from prompt_toolkit.history import FileHistory
 class TerminalUI:
     """
     Terminal UI Renderer using Rich and PromptToolkit.
-    Enforces design specifications from docs/08-design.md with timer badges.
+    Enforces design specifications from docs/08-design.md with live updating timer badges.
     """
 
     def __init__(self):
@@ -41,11 +44,47 @@ class TerminalUI:
         )
         self.console.print(banner_panel)
 
+    @contextmanager
+    def live_status(self, layer: str, message: str) -> Generator[Dict[str, float], None, None]:
+        """
+        Context manager providing a live updating status spinner with real-time timer ticker (ticks every 100ms).
+        """
+        badges = {
+            "intent": "[bold blue]🗣️  Nyimak...[/bold blue]",
+            "planner": "[bold magenta]🧠  Mikir dulu...[/bold magenta]",
+            "codegen": "[bold yellow]⚡  Nulis kode...[/bold yellow]",
+            "executor": "[bold green]🔧  Ngerjain:[/bold green]"
+        }
+        badge = badges.get(layer.lower(), "ℹ️ ")
+        start_time = time.time()
+        stop_event = threading.Event()
+        timer_info = {"elapsed": 0.0}
+
+        initial_text = f"\n{badge} [italic]{message}[/italic] [bold cyan](⏱️ 0.0s)[/bold cyan]"
+        status = self.console.status(initial_text, spinner="dots")
+
+        def tick():
+            while not stop_event.is_set():
+                elapsed = round(time.time() - start_time, 1)
+                timer_info["elapsed"] = elapsed
+                updated_text = f"\n{badge} [italic]{message}[/italic] [bold cyan](⏱️ {elapsed:.1f}s)[/bold cyan]"
+                status.update(updated_text)
+                time.sleep(0.1)
+
+        status.start()
+        thread = threading.Thread(target=tick, daemon=True)
+        thread.start()
+
+        try:
+            yield timer_info
+        finally:
+            stop_event.set()
+            thread.join(timeout=0.3)
+            status.stop()
+            timer_info["elapsed"] = round(time.time() - start_time, 2)
+
     def show_status(self, layer: str, message: str):
-        """
-        Displays layer status badge with casual Indonesian label & icon.
-        Layer options: 'intent', 'planner', 'codegen', 'executor'
-        """
+        """Displays static layer status badge."""
         badges = {
             "intent": ("[bold blue]🗣️  Nyimak...[/bold blue]", "cyan"),
             "planner": ("[bold magenta]🧠  Mikir dulu...[/bold magenta]", "magenta"),
