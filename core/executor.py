@@ -26,50 +26,74 @@ class Executor:
         self.confirm_command_callback = confirm_command_callback
         self.step_progress_callback = step_progress_callback
 
-    def resolve_target_path(self, instruction: str, project_root: str = ".") -> Optional[str]:
+    def resolve_target_path(self, target_path: Optional[str], instruction: str, project_root: str = ".") -> Optional[str]:
         """
-        Attempts to resolve target file path from instruction or workspace files when Planner outputs null.
+        Intelligently resolves target_path using exact checks, fuzzy workspace matching, and instruction parsing.
+        Example: 'README_KESIAPAN.md' -> resolves to 'docs/README_KESIAPAN.md'
+                 'kesiapan' -> resolves to 'docs/README_KESIAPAN.md'
         """
-        inst_lower = instruction.lower()
-        if "markdown" in inst_lower or ".md" in inst_lower or "readme" in inst_lower:
+        # 1. Clean placeholder strings
+        clean_path = str(target_path).strip() if target_path else None
+        if clean_path and clean_path.lower() in ("-", "null", "n/a", "none", ""):
+            clean_path = None
+
+        # 2. Direct path check
+        if clean_path:
+            full_path = clean_path if os.path.isabs(clean_path) else os.path.join(project_root, clean_path)
+            if os.path.exists(full_path):
+                return clean_path
+
+            # Direct path doesn't exist: search workspace for matching filename/basename!
+            target_filename = os.path.basename(clean_path).lower()
+            target_no_ext = os.path.splitext(target_filename)[0].lower()
+
             for root, dirs, files in os.walk(project_root):
-                dirs[:] = [d for d in dirs if not d.startswith(".") and d not in ("venv", ".venv", "__pycache__")]
+                dirs[:] = [d for d in dirs if not d.startswith(".") and d not in ("venv", ".venv", "__pycache__", "build", "dist", "node_modules")]
                 for f in files:
-                    if f.endswith(".md") and "kesiapan" in f.lower():
-                        return os.path.relpath(os.path.join(root, f), project_root)
-            for root, dirs, files in os.walk(project_root):
-                dirs[:] = [d for d in dirs if not d.startswith(".") and d not in ("venv", ".venv", "__pycache__")]
-                for f in files:
-                    if f.endswith(".md") and f.lower() != "readme.md":
-                        return os.path.relpath(os.path.join(root, f), project_root)
-        return None
+                    f_lower = f.lower()
+                    rel_file = os.path.relpath(os.path.join(root, f), project_root)
+                    if f_lower == target_filename or (target_no_ext and target_no_ext == os.path.splitext(f_lower)[0]):
+                        return rel_file
+
+        # 3. Fallback: Parse instruction for workspace file references
+        combined_text = f"{clean_path or ''} {instruction}".lower()
+        words = [w for w in combined_text.replace("_", " ").replace("-", " ").replace(".", " ").split() if len(w) > 3 and w not in ("file", "coba", "perbaiki", "ubah", "baca", "tulis", "buat", "agar", "isinya", "murni", "dokumen", "asli", "yang", "profesional", "mudah", "dibaca")]
+        
+        matches = []
+        for root, dirs, files in os.walk(project_root):
+            dirs[:] = [d for d in dirs if not d.startswith(".") and d not in ("venv", ".venv", "__pycache__", "build", "dist", "node_modules")]
+            for f in files:
+                f_lower = f.lower()
+                rel_file = os.path.relpath(os.path.join(root, f), project_root)
+                if any(w in f_lower for w in words):
+                    matches.append(rel_file)
+
+        if matches:
+            return matches[0]
+
+        return clean_path
 
     def execute_step(self, step: Dict[str, Any], project_root: str = ".") -> Dict[str, Any]:
         """
         Executes a single plan step dictionary with semantic validation & auto-repair loop.
         """
         action_type = step.get("action_type", "").lower()
-        target_path = step.get("target_path")
+        raw_target_path = step.get("target_path")
         command = step.get("command")
         instruction = step.get("instruction") or step.get("description", "")
 
-        # Clean target_path if LLM outputs placeholder text like "-", "null", "n/a"
-        if target_path and str(target_path).strip().lower() in ("-", "null", "n/a", "none", ""):
-            target_path = None
-
-        # Auto-resolve target_path if missing for file operations
-        if action_type in ("read_file", "write_file", "edit_file", "generate_code") and not target_path:
-            resolved = self.resolve_target_path(instruction, project_root=project_root)
-            if resolved:
-                target_path = resolved
+        # Intelligently resolve target_path via fuzzy workspace matching
+        target_path = self.resolve_target_path(raw_target_path, instruction, project_root=project_root)
 
         if target_path and not os.path.isabs(target_path):
-            target_path = os.path.join(project_root, target_path)
+            target_full_path = os.path.join(project_root, target_path)
+        else:
+            target_full_path = target_path
 
         result: Dict[str, Any] = {
             "step_number": step.get("step_number"),
             "action_type": action_type,
-            "target_path": target_path,
+            "target_path": target_path or raw_target_path,
             "success": False,
             "output": "",
             "diff": None,
@@ -84,14 +108,14 @@ class Executor:
             return result
 
         # Fail explicitly if file operation has no resolvable target_path
-        if action_type in ("read_file", "write_file", "edit_file", "generate_code") and not target_path:
+        if action_type in ("read_file", "write_file", "edit_file", "generate_code") and not target_full_path:
             result["success"] = False
             result["error"] = f"Gagal eksekusi [{action_type}]: Target path file tidak ditentukan oleh Planner dan tidak ditemukan di proyek."
             return result
 
         # 1. read_file
         if action_type == "read_file":
-            res = read_file(target_path)
+            res = read_file(target_full_path)
             result["success"] = res["success"]
             if res["success"]:
                 result["output"] = res["content"]
@@ -101,8 +125,8 @@ class Executor:
         # 2. write_file / generate_code / edit_file
         elif action_type in ("write_file", "edit_file", "generate_code"):
             existing_code = ""
-            if os.path.exists(target_path) and action_type == "edit_file":
-                r_res = read_file(target_path)
+            if os.path.exists(target_full_path) and action_type == "edit_file":
+                r_res = read_file(target_full_path)
                 if r_res["success"]:
                     existing_code = r_res["content"]
 
@@ -119,13 +143,13 @@ class Executor:
                 code_content = cg_res["code"]
 
             # Initial write
-            res = write_file(target_path, code_content)
+            res = write_file(target_full_path, code_content)
             if not res["success"]:
                 result["error"] = res["error"]
                 return result
 
             # --- Layer 4: Semantic Validation & Auto-Repair Loop ---
-            val_res = self.validator.validate_file(target_path, content=code_content)
+            val_res = self.validator.validate_file(target_full_path, content=code_content)
             result["validation"] = val_res
 
             # Auto-Repair Retry Loop if semantic validation failed
@@ -138,7 +162,7 @@ class Executor:
                         f"Hasil pembuatan sebelumnya GAGAL VALIDASI SEMANTIK:\n"
                         f"Alasan: {val_res['reason']}\n"
                         f"Tindakan Disarankan: {val_res['suggested_action']}\n\n"
-                        f"Hasikan ulang konten yang murni dan benar 100%!"
+                        f"Hasilkan ulang konten yang murni dan benar 100%!"
                     )
                     cg_repair = self.codegen_delegate.generate_code(
                         instruction=repair_instruction,
@@ -147,9 +171,9 @@ class Executor:
                     )
                     if cg_repair["success"]:
                         repaired_code = cg_repair["code"]
-                        res = write_file(target_path, repaired_code)
+                        res = write_file(target_full_path, repaired_code)
                         if res["success"]:
-                            val_res = self.validator.validate_file(target_path, content=repaired_code)
+                            val_res = self.validator.validate_file(target_full_path, content=repaired_code)
                             result["validation"] = val_res
                             if val_res["valid"]:
                                 code_content = repaired_code
@@ -159,14 +183,14 @@ class Executor:
                 result["success"] = True
                 result["output"] = f"File {target_path} berhasil dibuat/diubah & lulus validasi semantik."
                 if existing_code:
-                    result["diff"] = get_unified_diff(target_path, existing_code, code_content)
+                    result["diff"] = get_unified_diff(target_full_path, existing_code, code_content)
             else:
                 result["success"] = False
                 result["error"] = f"Validasi Semantik Gagal: {val_res['reason']}"
 
         # 3. list_dir
         elif action_type == "list_dir":
-            dir_path = target_path or project_root
+            dir_path = target_full_path or project_root
             res = list_dir(dir_path)
             result["success"] = res["success"]
             if res["success"]:
