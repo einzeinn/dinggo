@@ -108,7 +108,9 @@ class IntentParser:
                 system_prompt=self.system_prompt,
                 json_format=True,
                 think=False,
-                temperature=0.1
+                temperature=0.1,
+                num_ctx=2048,
+                num_predict=256
             )
 
             if not res["success"]:
