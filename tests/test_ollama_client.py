@@ -1,5 +1,5 @@
 import unittest
-from unittest.mock import patch, MagicMock
+from unittest.mock import patch
 from core.ollama_client import OllamaClient
 
 
@@ -11,9 +11,13 @@ class TestOllamaClient(unittest.TestCase):
         client = OllamaClient(base_url="http://localhost:11434")
         self.assertTrue(client.is_available())
 
+    @patch("httpx.get")
     @patch("httpx.post")
-    def test_unload_model(self, mock_post):
+    def test_unload_model(self, mock_post, mock_get):
+        mock_get.return_value.status_code = 200
+        mock_get.return_value.json.return_value = {"models": [{"name": "gemma-sea-lion"}]}
         mock_post.return_value.status_code = 200
+
         client = OllamaClient(base_url="http://localhost:11434")
         client.active_model = "gemma-sea-lion"
 
@@ -26,8 +30,11 @@ class TestOllamaClient(unittest.TestCase):
             timeout=5.0
         )
 
+    @patch("httpx.get")
     @patch("httpx.post")
-    def test_generate_auto_unload_previous_model(self, mock_post):
+    def test_generate_auto_unload_previous_model(self, mock_post, mock_get):
+        mock_get.return_value.status_code = 200
+        mock_get.return_value.json.return_value = {"models": []}
         mock_post.return_value.status_code = 200
         mock_post.return_value.json.return_value = {"response": '{"status": "ok"}', "done": True}
 

@@ -1,6 +1,6 @@
 import os
 import httpx
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, List
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -9,7 +9,7 @@ load_dotenv()
 class OllamaClient:
     """
     HTTP REST Client for interacting with local Ollama instance.
-    Includes explicit keep_alive: 0 unloading logic for RAM safety (<16GB).
+    Includes model tag resolution from /api/tags and keep_alive: 0 memory eviction.
     """
 
     def __init__(self, base_url: Optional[str] = None):
@@ -25,18 +25,58 @@ class OllamaClient:
         except Exception:
             return False
 
+    def list_installed_models(self) -> List[str]:
+        """Fetch list of installed model names from /api/tags."""
+        try:
+            res = httpx.get(f"{self.base_url}/api/tags", timeout=5.0)
+            if res.status_code == 200:
+                data = res.json()
+                return [m.get("name", "") for m in data.get("models", []) if m.get("name")]
+        except Exception:
+            pass
+        return []
+
+    def resolve_model_name(self, model_name: str) -> str:
+        """
+        Resolves model_name against installed models in Ollama using exact or fuzzy substring match.
+        """
+        installed = self.list_installed_models()
+        if not installed:
+            return model_name
+
+        # Exact match
+        if model_name in installed:
+            return model_name
+
+        # Case-insensitive exact match
+        for m in installed:
+            if m.lower() == model_name.lower():
+                return m
+
+        # Substring / keyword match (e.g. 'gemma-sea-lion' -> 'hf.co/aisingapore/Gemma-SEA-LION...')
+        cleaned_target = model_name.lower().replace("-", "").replace("_", "").replace(":", "")
+        for m in installed:
+            cleaned_m = m.lower().replace("-", "").replace("_", "").replace(":", "")
+            if cleaned_target in cleaned_m or cleaned_m in cleaned_target:
+                return m
+
+        return model_name
+
     def unload_model(self, model_name: str) -> bool:
         """
         Forces Ollama to immediately unload model from RAM by sending keep_alive: 0.
         """
         try:
+            resolved = self.resolve_model_name(model_name)
             payload = {
-                "model": model_name,
+                "model": resolved,
                 "keep_alive": 0
             }
             httpx.post(f"{self.base_url}/api/generate", json=payload, timeout=5.0)
-            if self.active_model == model_name:
-                self.active_model = None
+            if self.active_model:
+                active_resolved = self.resolve_model_name(self.active_model)
+                if active_resolved == resolved or self.active_model == model_name or self.active_model == resolved:
+                    self.active_model = None
             return True
         except Exception:
             return False
@@ -52,9 +92,11 @@ class OllamaClient:
         num_ctx: Optional[int] = None
     ) -> Dict[str, Any]:
         """
-        Sends generation request to Ollama. Automatically unloads active model first if changing models.
+        Sends generation request to Ollama with auto-resolved model tag name.
         """
-        if self.force_unload and self.active_model and self.active_model != model:
+        resolved_model = self.resolve_model_name(model)
+
+        if self.force_unload and self.active_model and self.active_model != resolved_model:
             self.unload_model(self.active_model)
 
         options: Dict[str, Any] = {
@@ -65,7 +107,7 @@ class OllamaClient:
             options["num_ctx"] = num_ctx
 
         payload: Dict[str, Any] = {
-            "model": model,
+            "model": resolved_model,
             "prompt": prompt,
             "stream": False,
             "options": options
@@ -85,13 +127,18 @@ class OllamaClient:
             )
             response.raise_for_status()
             data = response.json()
-            self.active_model = model
+            self.active_model = resolved_model
             return {
                 "success": True,
                 "response": data.get("response", ""),
                 "done": data.get("done", True)
             }
         except httpx.HTTPStatusError as e:
-            return {"success": False, "error": f"Ollama HTTP {e.response.status_code}: {e.response.text}"}
+            installed = self.list_installed_models()
+            avail_str = ", ".join(installed) if installed else "tidak ada"
+            return {
+                "success": False,
+                "error": f"Ollama HTTP {e.response.status_code} ({resolved_model}): {e.response.text}\nModel yang tersedia di Ollama: [{avail_str}]"
+            }
         except Exception as e:
-            return {"success": False, "error": f"Gagal menghubungi Ollama ({model}): {str(e)}"}
+            return {"success": False, "error": f"Gagal menghubungi Ollama ({resolved_model}): {str(e)}"}
