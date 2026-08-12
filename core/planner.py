@@ -34,6 +34,26 @@ def sanitize_thinking_output(text: str) -> str:
     return cleaned.strip()
 
 
+def repair_truncated_json(json_str: str) -> str:
+    """Attempts to repair truncated JSON arrays or objects by closing unclosed brackets."""
+    json_str = json_str.strip()
+    if not json_str:
+        return json_str
+
+    if json_str.count('"') % 2 != 0:
+        json_str += '"'
+
+    open_curly = json_str.count("{") - json_str.count("}")
+    open_square = json_str.count("[") - json_str.count("]")
+
+    if open_curly > 0:
+        json_str += "}" * open_curly
+    if open_square > 0:
+        json_str += "]" * open_square
+
+    return json_str
+
+
 class Planner:
     """
     Layer 2: Planner / Orchestrator Wrapper (Qwen3.5-4B thinking mode).
@@ -102,7 +122,7 @@ class Planner:
                 json_format=True,
                 think=False,
                 temperature=0.2,
-                num_ctx=2048
+                num_ctx=4096
             )
 
             if not res["success"]:
@@ -115,14 +135,24 @@ class Planner:
 
             try:
                 data = json.loads(json_str)
+            except json.JSONDecodeError:
+                # Attempt to repair truncated JSON
+                repaired = repair_truncated_json(json_str)
+                try:
+                    data = json.loads(repaired)
+                except Exception as e:
+                    last_error = f"Error Parsing/Validation Plan: {str(e)}\nRaw Response: {sanitized[:200]}"
+                    continue
+
+            try:
                 validated = PlanSchema(**data)
                 return {
                     "success": True,
                     "plan": validated.model_dump(),
                     "attempts": attempt
                 }
-            except (json.JSONDecodeError, ValidationError) as e:
-                last_error = f"Error Parsing/Validation Plan: {str(e)}\nRaw Response: {sanitized[:200]}"
+            except ValidationError as e:
+                last_error = f"Error Validation Plan Schema: {str(e)}\nRaw Response: {sanitized[:200]}"
 
         return {
             "success": False,

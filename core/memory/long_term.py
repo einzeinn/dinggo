@@ -97,8 +97,8 @@ class LongTermMemory:
         self._save_json(self.graph_filepath, self.code_graph)
         return self.code_graph
 
-    def get_formatted_graph_context(self) -> str:
-        """Returns string representation of Code Knowledge Graph for LLM context."""
+    def get_formatted_graph_context(self, target_scope: Optional[List[str]] = None, max_files: int = 5) -> str:
+        """Returns concise string representation of Code Knowledge Graph for LLM context."""
         files = self.code_graph.get("files", {})
         if not files:
             self.build_code_graph()
@@ -107,8 +107,20 @@ class LongTermMemory:
         if not files:
             return "Struktur file proyek tidak ditemukan."
 
+        selected_files = {}
+        if target_scope:
+            scope_lowers = [s.lower() for s in target_scope if s]
+            for path, info in files.items():
+                if any(s in path.lower() for s in scope_lowers):
+                    selected_files[path] = info
+
+        if not selected_files:
+            # Fallback to first max_files
+            for path, info in list(files.items())[:max_files]:
+                selected_files[path] = info
+
         lines = ["Struktur & Graph Proyek Aktif:"]
-        for path, info in list(files.items())[:15]:  # Top 15 files
+        for path, info in list(selected_files.items())[:max_files]:
             classes = ", ".join(info.get("classes", [])) or "None"
             funcs = ", ".join(info.get("functions", [])) or "None"
             imports = ", ".join(info.get("imports", [])) or "None"

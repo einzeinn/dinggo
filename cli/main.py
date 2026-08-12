@@ -112,8 +112,8 @@ def main():
             )
             continue
 
-        # Get active long-term code graph context
-        long_term_ctx = long_term_memory.get_formatted_graph_context()
+        # Get active long-term code graph context filtered by target scope
+        long_term_ctx = long_term_memory.get_formatted_graph_context(target_scope=target_scope)
 
         # Layer 2: Planning Loop with live updating status timer & memory
         revision_feedback: Optional[str] = None
