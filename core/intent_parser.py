@@ -9,9 +9,13 @@ from core.ollama_client import OllamaClient
 
 
 class IntentSchema(BaseModel):
+    is_task: bool = Field(
+        default=True,
+        description="True jika instruksi pengerjaan/koding/file/command, False jika hanya sapaan/obrolan"
+    )
     task_type: str = Field(
         default="general_task",
-        description="Jenis tugas: create_file, edit_file, read_file, run_command, atau general_task"
+        description="Jenis tugas: create_file, edit_file, read_file, run_command, general_task, atau chat"
     )
     target_scope: List[str] = Field(
         default_factory=list,
@@ -23,6 +27,10 @@ class IntentSchema(BaseModel):
     constraints: List[str] = Field(
         default_factory=list,
         description="Daftar batasan atau instruksi khusus"
+    )
+    direct_response: Optional[str] = Field(
+        default=None,
+        description="Jawaban ramah langsung jika is_task=False (sapaan/obrolan)"
     )
 
 

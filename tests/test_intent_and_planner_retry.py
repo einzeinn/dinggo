@@ -33,6 +33,20 @@ class TestIntentAndPlannerRetry(unittest.TestCase):
         self.assertEqual(res["intent"]["summary"], "Tambah helper")
         self.assertEqual(mock_client.generate.call_count, 2)
 
+    def test_intent_parser_non_task_classification(self):
+        mock_client = MagicMock()
+        mock_client.generate.return_value = {
+            "success": True,
+            "response": '{"is_task": false, "task_type": "chat", "summary": "Salam pembuka", "direct_response": "Halo! Ada yang bisa saya bantu?"}'
+        }
+
+        parser = IntentParser(ollama_client=mock_client)
+        res = parser.parse("hi")
+
+        self.assertTrue(res["success"])
+        self.assertFalse(res["intent"]["is_task"])
+        self.assertEqual(res["intent"]["direct_response"], "Halo! Ada yang bisa saya bantu?")
+
     def test_planner_repair_retry(self):
         mock_client = MagicMock()
         # Attempt 1: Invalid schema missing required fields

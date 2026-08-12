@@ -49,6 +49,16 @@ def main():
         intent_data = intent_res["intent"]
         ui.render_intent(intent_data)
 
+        # Check if input is a task execution command vs casual chat/greeting
+        is_task = intent_data.get("is_task", True)
+        task_type = intent_data.get("task_type", "").lower()
+        direct_resp = intent_data.get("direct_response")
+
+        if not is_task or task_type in ("chat", "general_chat"):
+            response_msg = direct_resp or intent_data.get("summary") or "Halo! Ada yang bisa saya bantu dengan proyek Anda hari ini?"
+            ui.render_direct_response(response_msg)
+            continue
+
         # Layer 2: Planning Loop (supports revision)
         revision_feedback: Optional[str] = None
         plan_approved = False

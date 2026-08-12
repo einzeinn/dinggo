@@ -68,6 +68,14 @@ class TerminalUI:
         )
         self.console.print(Panel(Text.from_markup(text), title="[bold blue]Structured Intent[/bold blue]", border_style="blue"))
 
+    def render_direct_response(self, message: str):
+        """Displays direct casual response for non-task inputs without planner/execution flow."""
+        self.console.print(Panel(
+            Text(message, style="bold cyan"),
+            title="[bold cyan]💬 Response[/bold cyan]",
+            border_style="cyan"
+        ))
+
     def render_plan(self, plan_data: Dict[str, Any]):
         """Displays numbered plan steps in a styled panel."""
         summary = plan_data.get("intent_summary", "Rencana Eksekusi")
