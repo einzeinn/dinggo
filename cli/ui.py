@@ -64,7 +64,8 @@ class TerminalUI:
             "intent": "[bold blue]🗣️  Nyimak...[/bold blue]",
             "planner": "[bold magenta]🧠  Mikir dulu...[/bold magenta]",
             "codegen": "[bold yellow]⚡  Nulis kode...[/bold yellow]",
-            "executor": "[bold green]🔧  Ngerjain:[/bold green]"
+            "executor": "[bold green]🔧  Ngerjain:[/bold green]",
+            "validator": "[bold cyan]🔍  Validasi...[/bold cyan]"
         }
         badge = badges.get(layer.lower(), "ℹ️ ")
         start_time = time.time()

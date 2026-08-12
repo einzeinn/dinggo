@@ -102,7 +102,7 @@ class Planner:
                 json_format=True,
                 think=False,
                 temperature=0.2,
-                num_ctx=8192
+                num_ctx=2048
             )
 
             if not res["success"]:

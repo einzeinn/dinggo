@@ -6,19 +6,38 @@ from typing import Optional, Dict, Any
 from core.ollama_client import OllamaClient
 
 
-def extract_code_block(text: str) -> str:
-    """Extract code block if surrounded by markdown fences, otherwise strip text."""
+def extract_content_block(text: str, ext: str = "") -> str:
+    """Extract code/content block if surrounded by markdown fences, otherwise strip text."""
     text = text.strip()
-    match = re.search(r"```(?:python)?\s*([\s\S]*?)\s*```", text, re.IGNORECASE)
+    match = re.search(r"```(?:[a-z0-9_-]+)?\s*([\s\S]*?)\s*```", text, re.IGNORECASE)
     if match:
-        return match.group(1).strip()
-    return text
+        extracted = match.group(1).strip()
+    else:
+        extracted = text
+
+    # Remove accidental Python script wrappers for non-python files (e.g. def generate_readme... with open(...) file.write)
+    if ext in (".md", ".markdown", ".json", ".yaml", ".txt", ".html"):
+        # If model generated `def generate_...(): with open(...) file.write("# Content...")`
+        write_matches = re.findall(r"file\.write\((['\"][\s\S]*?['\"])\)", extracted)
+        if write_matches:
+            cleaned_lines = []
+            for w in write_matches:
+                # Clean python string quotes/escapes
+                try:
+                    s = eval(w)
+                    cleaned_lines.append(s)
+                except Exception:
+                    cleaned_lines.append(w.strip("'\"").replace("\\n", "\n"))
+            return "".join(cleaned_lines).strip()
+
+    return extracted
 
 
 class CodegenDelegate:
     """
     Codegen Delegate Wrapper (Qwen2.5-Coder-3b).
-    Delegates precision Python code generation for steps requiring code creation/modification.
+    Delegates precision code and document content generation for target files.
+    Handles both Python code and non-Python documents (Markdown, JSON, YAML).
     """
 
     def __init__(self, ollama_client: Optional[OllamaClient] = None, config_path: str = "config/models.yaml"):
@@ -35,8 +54,8 @@ class CodegenDelegate:
             except Exception:
                 pass
         return (
-            "Anda adalah pakar pemrogram Python yang presisi. "
-            "Hasilkan HANYA kode Python yang lengkap dan bersih tanpa penjelasan teks di luar kode."
+            "Anda adalah pakar pemrogram dan penulis konten teknis. "
+            "Hasilkan HANYA isi file yang lengkap dan murni tanpa penjelasan teks di luar file."
         )
 
     def generate_code(
@@ -46,15 +65,29 @@ class CodegenDelegate:
         target_path: Optional[str] = None
     ) -> Dict[str, Any]:
         """
-        Generates Python code based on instruction and optional existing code content.
+        Generates code or document content based on instruction, target path extension, and optional existing content.
         """
-        prompt = f"Instruksi Pembuatan Kode: {instruction}\n"
-        if target_path:
-            prompt += f"Target File: {target_path}\n"
-        if existing_code:
-            prompt += f"\nKode Existing Saat Ini:\n```python\n{existing_code}\n```\n"
+        ext = os.path.splitext(target_path or "")[1].lower()
+        is_python = ext == ".py" or not ext
 
-        prompt += "\nBerikan kode Python yang lengkap untuk mengimplementasikan instruksi di atas."
+        if is_python:
+            prompt = f"Instruksi Pembuatan Kode Python: {instruction}\n"
+            if target_path:
+                prompt += f"Target File: {target_path}\n"
+            if existing_code:
+                prompt += f"\nKode Existing Saat Ini:\n```python\n{existing_code}\n```\n"
+            prompt += "\nBerikan kode Python yang lengkap untuk mengimplementasikan instruksi di atas."
+        else:
+            prompt = f"Instruksi Pembuatan Dokumentasi/File ({ext}): {instruction}\n"
+            if target_path:
+                prompt += f"Target File Path: {target_path}\n"
+            if existing_code:
+                prompt += f"\nKonten Existing Saat Ini:\n```{ext.strip('.')}\n{existing_code}\n```\n"
+            prompt += (
+                f"\nPERHATIAN: Target file '{target_path}' adalah file {ext}.\n"
+                f"Hasilkan HANYA konten {ext} yang murni secara langsung!\n"
+                f"JANGAN membuat program Python `def generate_...` atau `file.write()`, dan JANGAN menulis teks penjelasan di luar dokumen."
+            )
 
         res = self.client.generate(
             model=self.model_name,
@@ -71,8 +104,8 @@ class CodegenDelegate:
                 "code": ""
             }
 
-        code_clean = extract_code_block(res["response"])
+        content_clean = extract_content_block(res["response"], ext=ext)
         return {
             "success": True,
-            "code": code_clean
+            "code": content_clean
         }

@@ -3,14 +3,15 @@ from typing import Dict, Any, List, Optional, Callable
 
 from core.ollama_client import OllamaClient
 from core.codegen import CodegenDelegate
+from core.validator import SemanticValidator
 from tools.file_ops import read_file, write_file, list_dir, edit_file, get_unified_diff
 from tools.shell_ops import run_command
 
 
 class Executor:
     """
-    Layer 3 Executor.
-    Iterates plan steps, calls tools, delegates Python codegen, and enforces confirmation guards.
+    Layer 3 Executor & Layer 4 Semantic Validator.
+    Iterates plan steps, calls tools, delegates codegen, validates semantic correctness, and executes auto-repair loops.
     """
 
     def __init__(
@@ -21,12 +22,13 @@ class Executor:
     ):
         self.client = ollama_client or OllamaClient()
         self.codegen_delegate = CodegenDelegate(ollama_client=self.client)
+        self.validator = SemanticValidator()
         self.confirm_command_callback = confirm_command_callback
         self.step_progress_callback = step_progress_callback
 
     def execute_step(self, step: Dict[str, Any], project_root: str = ".") -> Dict[str, Any]:
         """
-        Executes a single plan step dictionary.
+        Executes a single plan step dictionary with semantic validation & auto-repair loop.
         """
         action_type = step.get("action_type", "").lower()
         target_path = step.get("target_path")
@@ -47,7 +49,8 @@ class Executor:
             "success": False,
             "output": "",
             "diff": None,
-            "error": None
+            "error": None,
+            "validation": None
         }
 
         # 0. general_response or fallback for missing file target path
@@ -65,30 +68,75 @@ class Executor:
             else:
                 result["error"] = res["error"]
 
-        # 2. write_file
-        elif action_type == "write_file":
+        # 2. write_file / generate_code / edit_file
+        elif action_type in ("write_file", "edit_file", "generate_code"):
             if not target_path:
-                result["error"] = "Target path tidak ditentukan untuk write_file"
+                result["error"] = f"Target path tidak ditentukan untuk {action_type}"
                 return result
             
-            # If step has no explicit code content, generate via Codegen
+            existing_code = ""
+            if os.path.exists(target_path) and action_type == "edit_file":
+                r_res = read_file(target_path)
+                if r_res["success"]:
+                    existing_code = r_res["content"]
+
             code_content = step.get("content")
             if not code_content:
                 cg_res = self.codegen_delegate.generate_code(
                     instruction=instruction,
+                    existing_code=existing_code,
                     target_path=target_path
                 )
                 if not cg_res["success"]:
-                    result["error"] = f"Gagal generate kode: {cg_res['error']}"
+                    result["error"] = f"Gagal generate konten: {cg_res['error']}"
                     return result
                 code_content = cg_res["code"]
 
+            # Initial write
             res = write_file(target_path, code_content)
-            result["success"] = res["success"]
-            if res["success"]:
-                result["output"] = f"File berhasil ditulis: {target_path} ({res['bytes_written']} bytes)"
-            else:
+            if not res["success"]:
                 result["error"] = res["error"]
+                return result
+
+            # --- Layer 4: Semantic Validation & Auto-Repair Loop ---
+            val_res = self.validator.validate_file(target_path, content=code_content)
+            result["validation"] = val_res
+
+            # Auto-Repair Retry Loop if semantic validation failed (e.g. Python code written to .md file)
+            if not val_res["valid"]:
+                repair_attempts = 2
+                for r_attempt in range(1, repair_attempts + 1):
+                    repair_instruction = (
+                        f"{instruction}\n\n"
+                        f"[PERBAIKAN OTOMATIS #{r_attempt}]\n"
+                        f"Hasil pembuatan sebelumnya GAGAL VALIDASI SEMANTIK:\n"
+                        f"Alasan: {val_res['reason']}\n"
+                        f"Tindakan Disarankan: {val_res['suggested_action']}\n\n"
+                        f"Hasilkan ulang konten yang murni dan benar 100%!"
+                    )
+                    cg_repair = self.codegen_delegate.generate_code(
+                        instruction=repair_instruction,
+                        existing_code=existing_code,
+                        target_path=target_path
+                    )
+                    if cg_repair["success"]:
+                        repaired_code = cg_repair["code"]
+                        res = write_file(target_path, repaired_code)
+                        if res["success"]:
+                            val_res = self.validator.validate_file(target_path, content=repaired_code)
+                            result["validation"] = val_res
+                            if val_res["valid"]:
+                                code_content = repaired_code
+                                break
+
+            if val_res["valid"]:
+                result["success"] = True
+                result["output"] = f"File {target_path} berhasil dibuat/diubah & lulus validasi semantik."
+                if existing_code:
+                    result["diff"] = get_unified_diff(target_path, existing_code, code_content)
+            else:
+                result["success"] = False
+                result["error"] = f"Validasi Semantik Gagal: {val_res['reason']}"
 
         # 3. list_dir
         elif action_type == "list_dir":
@@ -104,41 +152,7 @@ class Executor:
             else:
                 result["error"] = res["error"]
 
-        # 4. edit_file / generate_code
-        elif action_type in ("edit_file", "generate_code"):
-            if not target_path:
-                result["error"] = f"Target path tidak ditentukan untuk {action_type}"
-                return result
-
-            # Read existing file content if file exists
-            existing_code = ""
-            if os.path.exists(target_path):
-                r_res = read_file(target_path)
-                if r_res["success"]:
-                    existing_code = r_res["content"]
-
-            cg_res = self.codegen_delegate.generate_code(
-                instruction=instruction,
-                existing_code=existing_code,
-                target_path=target_path
-            )
-
-            if not cg_res["success"]:
-                result["error"] = f"Gagal generate/edit kode: {cg_res['error']}"
-                return result
-
-            new_code = cg_res["code"]
-            diff_str = get_unified_diff(target_path, existing_code, new_code)
-            
-            res = write_file(target_path, new_code)
-            result["success"] = res["success"]
-            if res["success"]:
-                result["diff"] = diff_str
-                result["output"] = f"File {target_path} berhasil diubah."
-            else:
-                result["error"] = res["error"]
-
-        # 5. run_command (Mandatory explicit user confirmation safety guard)
+        # 4. run_command (Mandatory explicit user confirmation safety guard)
         elif action_type == "run_command":
             if not command:
                 result["error"] = "Command string tidak ditentukan untuk run_command"

@@ -131,11 +131,13 @@ class OllamaClient:
             except ValueError:
                 pass
 
+        keep_alive = os.getenv("OLLAMA_KEEP_ALIVE", "5m")
         payload: Dict[str, Any] = {
             "model": resolved_model,
             "prompt": prompt,
             "stream": False,
-            "options": options
+            "options": options,
+            "keep_alive": keep_alive
         }
 
         if system_prompt:
