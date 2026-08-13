@@ -85,6 +85,26 @@ def main():
             # Get active short-term conversation context
             short_term_ctx = short_term_memory.get_formatted_context()
 
+            # Pre-LLM fast-path: catch obvious greetings/chat patterns instantly (skip 15s+ LLM call)
+            _lowered = user_input.strip().lower().rstrip("!?.,:;")
+            _GREETING_PATTERNS = {
+                "hi", "halo", "hai", "hello", "hey", "yo", "ping", "pong",
+                "hei", "oi", "sup", "woi", "woy", "hola", "howdy",
+                "selamat pagi", "selamat siang", "selamat sore", "selamat malam",
+                "good morning", "good afternoon", "good evening", "good night",
+                "makasih", "terima kasih", "thanks", "thank you", "thx",
+                "apa kabar", "how are you", "what's up", "whats up",
+            }
+            if _lowered in _GREETING_PATTERNS or len(_lowered) <= 3 and not _lowered.startswith("/"):
+                response_msg = "Halo! 🐕 Ada yang bisa saya bantu dengan proyek Anda hari ini?"
+                ui.render_direct_response(response_msg, elapsed=0.0)
+                short_term_memory.add_turn(
+                    prompt=user_input, category="CONVERSATION",
+                    summary="Sapaan dari pengguna", target_scope=[],
+                    direct_response=response_msg
+                )
+                continue
+
             # Layer 1: Intent Parsing with live updating status timer & memory
             with ui.live_status("intent", "Mencerna maksud dan target instruksi...") as timer_intent:
                 intent_res = intent_parser.parse(user_input, short_term_context=short_term_ctx)
