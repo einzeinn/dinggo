@@ -118,14 +118,24 @@ class Executor:
 
         # Graceful fallback for read_file/view_outline when target_path is not resolvable
         if action_type in ("read_file", "view_outline") and (not target_full_path or not os.path.exists(target_full_path)):
-            search_query = command or instruction or raw_target_path or ""
-            search_res = search_code(query=search_query, root_dir=project_root)
-            if search_res["success"] and search_res.get("output"):
-                result["action_type"] = "search_code"
-                result["target_path"] = search_query
-                result["success"] = True
-                result["output"] = search_res["output"]
-                return result
+            search_query = (command or "").strip()
+            if search_query and len(search_query.split()) <= 3:
+                search_res = search_code(query=search_query, root_dir=project_root)
+                if search_res["success"] and search_res.get("output"):
+                    result["action_type"] = "search_code"
+                    result["target_path"] = search_query
+                    result["success"] = True
+                    result["output"] = search_res["output"]
+                    return result
+            
+            from tools.file_ops import list_dir
+            list_res = list_dir(project_root)
+            items = [i["name"] for i in list_res.get("items", [])]
+            result["action_type"] = "list_dir"
+            result["target_path"] = "."
+            result["success"] = True
+            result["output"] = f"Target file not found. Auto-fallback to list_dir.\nFiles in root:\n{', '.join(items)}"
+            return result
 
         # Fail explicitly if write_file/edit_file has no target_path
         if action_type in ("read_file", "write_file", "edit_file", "generate_code", "view_outline") and not target_full_path:

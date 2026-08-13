@@ -47,8 +47,10 @@ planner:
     CRITICAL RULES:
     1. action_type MUST strictly be one of: "search_code", "view_outline", "read_file", "write_file", "list_dir", "edit_file", "run_command", "generate_code", or "general_response". DO NOT invent new action types.
     2. If the user requests code analysis, bug searching, or project inspection, you MUST use "search_code", "list_dir", or "view_outline" first to inspect real source code!
-    3. DO NOT invent or hallucinate non-existent file paths (e.g. "backendackend/app.py"). If you do not know the exact file path, use "search_code" or "list_dir" first!
-    4. If action_type is "read_file", "edit_file", or "view_outline", "target_path" MUST NOT BE NULL. It must be an exact relative file path in the workspace.
+    3. DO NOT hallucinate bugs, code, or outcomes in your step descriptions. You are just planning actions. Do not use "general_response" to report findings you haven't searched for yet!
+    4. If you don't know any files in the project, your VERY FIRST step MUST be "list_dir" with target_path "." to explore the root directory!
+    5. DO NOT invent or hallucinate non-existent file paths (e.g. "backendackend/app.py"). If you do not know the exact file path, use "search_code" or "list_dir" first!
+    6. If action_type is "read_file", "edit_file", or "view_outline", "target_path" MUST NOT BE NULL. It must be an exact relative file path in the workspace.
 
     Required JSON Output Schema:
     {
