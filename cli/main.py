@@ -151,14 +151,12 @@ def main():
                 )
                 continue
 
-            # 3. QUESTION — jawab langsung pertanyaan tentang proyek pakai LLM + konteks
-            #    Skip pipeline Planner→Executor; kirim pertanyaan + context ke model planner
-            _QUESTION_TASK_TYPES = {"question", "inquiry", "ask", "info", "read_file", "information_retrieval", "greeting"}
+            # 3. QUESTION — jawab langsung pertanyaan umum/informatif seputar proyek tanpa aksi file/command
+            #    HANYA berlaku jika is_task=False dan category=QUESTION/CONVERSATION.
+            #    Jika is_task=True (seperti "cari bug", "analisis file X"), WAJIB masuk pipeline Planner->Executor agar file dibaca secara nyata.
             _is_question = (
-                category == "QUESTION"
-                or task_type in _QUESTION_TASK_TYPES
-                or (not is_task and category == "TASK")
-                or any(kw in summary.lower() for kw in ("menanyakan", "bertanya", "tanya", "apa ", "siapa ", "kenapa ", "mengapa ", "jelaskan", "bagaimana "))
+                not is_task
+                and category in ("QUESTION", "CONVERSATION")
             )
             if _is_question:
                 # Gather project context for informed answer

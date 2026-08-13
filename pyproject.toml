@@ -29,6 +29,3 @@ pythonpath = ["."]
 where = ["."]
 include = ["cli*", "core*", "tools*"]
 
-[tool.setuptools.config.editable]
-mode = "compat"
-

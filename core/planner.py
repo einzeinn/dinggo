@@ -34,24 +34,43 @@ def sanitize_thinking_output(text: str) -> str:
     return cleaned.strip()
 
 
-def repair_truncated_json(json_str: str) -> str:
-    """Attempts to repair truncated JSON arrays or objects by closing unclosed brackets."""
-    json_str = json_str.strip()
-    if not json_str:
-        return json_str
+VALID_ACTION_TYPES = {
+    "read_file", "write_file", "list_dir", "edit_file", 
+    "run_command", "generate_code", "general_response"
+}
+ACTION_TYPE_MAP = {
+    "information_retrieval": "read_file",
+    "code_analysis": "read_file",
+    "inspect_file": "read_file",
+    "analyze_code": "read_file",
+    "search_code": "read_file",
+    "view_file": "read_file",
+    "create_code": "generate_code",
+    "modify_file": "edit_file",
+    "exec_command": "run_command",
+    "shell": "run_command",
+    "cmd": "run_command",
+    "info": "general_response",
+    "explanation": "general_response",
+    "component_mapping": "read_file",
+    "synthesis_and_reporting": "general_response",
+}
 
-    if json_str.count('"') % 2 != 0:
-        json_str += '"'
 
-    open_curly = json_str.count("{") - json_str.count("}")
-    open_square = json_str.count("[") - json_str.count("]")
-
-    if open_curly > 0:
-        json_str += "}" * open_curly
-    if open_square > 0:
-        json_str += "]" * open_square
-
-    return json_str
+def normalize_plan_data(data: Dict[str, Any]) -> Dict[str, Any]:
+    """Normalizes step action_types to valid enum values."""
+    if not isinstance(data, dict):
+        return data
+    steps = data.get("steps", [])
+    if isinstance(steps, list):
+        for step in steps:
+            if isinstance(step, dict):
+                act = str(step.get("action_type", "")).lower().strip()
+                if act in ACTION_TYPE_MAP:
+                    step["action_type"] = ACTION_TYPE_MAP[act]
+                elif act not in VALID_ACTION_TYPES:
+                    step["action_type"] = "read_file" if ("file" in act or "code" in act or "dir" in act) else "general_response"
+    return data
 
 
 class Planner:
@@ -146,6 +165,7 @@ class Planner:
                     continue
 
             try:
+                data = normalize_plan_data(data)
                 validated = PlanSchema(**data)
                 return {
                     "success": True,
