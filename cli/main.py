@@ -290,11 +290,16 @@ def main():
                 sum_system = (
                     "You are the Dinggo project assistant. Your task is to synthesize a clear, comprehensive final executive summary report "
                     "for the user based on the technical step execution findings.\n"
-                    "CRITICAL LANGUAGE RULE: Write your final report in the exact same language as the Original User Request "
-                    "(e.g., if the user asked in Bahasa Indonesia, write the report in Bahasa Indonesia; if in English, write in English).\n"
                     "Format your final output cleanly using professional Markdown."
                 )
-                sum_prompt = f"Original User Request: {user_input}\nInternal Technical Intent: {summary}\n\nTechnical Step Findings:\n" + "\n\n".join(step_logs) + "\n\nSynthesize the final report for the user now:"
+                sum_prompt = (
+                    f"Original User Request: {user_input}\n"
+                    f"Internal Technical Intent: {summary}\n\n"
+                    f"Technical Step Findings:\n" + "\n\n".join(step_logs) + 
+                    "\n\nBased on the Original User Request, synthesize a final executive summary report. "
+                    "CRITICAL: You MUST write this final report in the EXACT SAME LANGUAGE that the user used in their 'Original User Request'! "
+                    "(e.g. if the request was Indonesian, write in Indonesian. If English, write in English)."
+                )
 
                 with ui.live_status("intent", "Synthesizing final executive summary report...") as timer_sum:
                     sum_res = ollama_client.generate(

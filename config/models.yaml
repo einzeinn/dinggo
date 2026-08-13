@@ -51,6 +51,7 @@ planner:
     4. If you don't know any files in the project, your VERY FIRST step MUST be "list_dir" with target_path "." to explore the root directory!
     5. DO NOT invent or hallucinate non-existent file paths (e.g. "backendackend/app.py"). If you do not know the exact file path, use "search_code" or "list_dir" first!
     6. If action_type is "read_file", "edit_file", or "view_outline", "target_path" MUST NOT BE NULL. It must be an exact relative file path in the workspace.
+    7. ALL YOUR OUTPUTS (intent_summary, descriptions, instructions) MUST BE IN PURE ENGLISH! Do not write in Indonesian or any other language, even if the user prompt was in Indonesian.
 
     Required JSON Output Schema:
     {
