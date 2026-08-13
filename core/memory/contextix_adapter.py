@@ -2,20 +2,28 @@ import os
 import shutil
 import subprocess
 import time
+import threading
 import yaml
+from enum import Enum
 from pathlib import Path
 from typing import Dict, Any, Optional, List
 from core.memory.project_context import ProjectContext
 
 
+class ContextState(str, Enum):
+    CLEAN = "CLEAN"
+    DIRTY = "DIRTY"
+    REFRESHING = "REFRESHING"
+
+
 class ContextixAdapter:
     """
     Adapter for integrating Contextix AI Project Memory into Dinggo CLI IDE.
-    Features:
-    - Auto-detection of global `contextix` CLI / package.
-    - Startup auto-generation of `.context/` if missing in project root.
-    - In-Memory caching with timestamp invalidation for zero redundant disk reads.
-    - Post-execution auto-refresh after file modifications to keep project state 100% synced.
+    Implements:
+    - State Machine: CLEAN, DIRTY, REFRESHING.
+    - Decoupled Memory: Context Cache (Contextix docs/decisions) vs Agent State (Dinggo task/plan runtime).
+    - Scope-Targeted Context Querying: Filters relevant subsets of decisions/rules for 4K context window.
+    - Non-blocking Post-Task Batch Refresh: Refresh triggered ONCE after execution completes (no per-step refresh loops).
     """
 
     def __init__(self, context: ProjectContext):
@@ -26,7 +34,12 @@ class ContextixAdapter:
         self.context_yaml_path = os.path.join(self.context_dir, "context.yaml")
         self.summary_path = os.path.join(self.context_dir, "summary.md")
 
+        # State Machine & Threading
+        self.state: ContextState = ContextState.CLEAN if self.has_context() else ContextState.DIRTY
+        self._refresh_lock = threading.Lock()
+
         # In-memory cache & timestamp tracking
+        self._cached_context_data: Optional[Dict[str, Any]] = None
         self._cached_formatted_str: Optional[str] = None
         self._last_mtime: float = 0.0
 
@@ -46,13 +59,17 @@ class ContextixAdapter:
             os.path.exists(self.bootstrap_path) or os.path.exists(self.context_yaml_path)
         )
 
+    def mark_dirty(self):
+        """Marks the context memory state as DIRTY when files are modified by Executor."""
+        if self.state != ContextState.REFRESHING:
+            self.state = ContextState.DIRTY
+
     def run_generate(self) -> Dict[str, Any]:
-        """Runs `contextix generate` in the active project working directory."""
+        """Synchronously runs `contextix generate` in active project working directory."""
         if not self.is_available():
             return {"success": False, "error": "CLI 'contextix' tidak ditemukan di PATH sistem."}
 
         try:
-            # Use subprocess to run global contextix CLI in project root
             cmd = ["contextix", "generate"]
             start_t = time.time()
             res = subprocess.run(
@@ -60,27 +77,54 @@ class ContextixAdapter:
                 cwd=self.working_dir,
                 capture_output=True,
                 text=True,
-                timeout=30.0
+                timeout=35.0
             )
             elapsed = round(time.time() - start_t, 2)
 
             if res.returncode == 0:
                 self.invalidate_cache()
+                self.state = ContextState.CLEAN
                 return {"success": True, "elapsed": elapsed, "output": res.stdout.strip()}
             else:
                 return {"success": False, "error": res.stderr.strip() or res.stdout.strip() or f"Exit code {res.returncode}"}
         except Exception as e:
             return {"success": False, "error": f"Gagal menjalankan contextix generate: {str(e)}"}
 
+    def refresh_post_execution(self, modified_files: Optional[List[str]] = None):
+        """
+        Triggers a non-blocking post-execution batch refresh after Executor completes all steps.
+        Transitions state: DIRTY -> REFRESHING -> CLEAN.
+        Does NOT block if user sends a new prompt during REFRESHING.
+        """
+        if not self.is_available():
+            return
+
+        if self.state == ContextState.CLEAN and self.has_context():
+            return
+
+        def _bg_refresh():
+            with self._refresh_lock:
+                self.state = ContextState.REFRESHING
+                res = self.run_generate()
+                if res["success"]:
+                    self.state = ContextState.CLEAN
+                else:
+                    self.state = ContextState.DIRTY
+
+        thread = threading.Thread(target=_bg_refresh, daemon=True)
+        thread.start()
+
     def ensure_context_on_startup(self, ui: Optional[Any] = None) -> bool:
         """
         Auto-detects .context/ on startup.
-        If missing and contextix is available, auto-triggers `contextix generate`.
+        If missing and contextix is available, auto-triggers initial `contextix generate`.
         """
         if self.has_context():
+            self.state = ContextState.CLEAN
             return True
 
         if not self.is_available():
+            self.state = ContextState.DIRTY
             return False
 
         if ui and hasattr(ui, "console"):
@@ -88,26 +132,15 @@ class ContextixAdapter:
 
         res = self.run_generate()
         if res["success"]:
+            self.state = ContextState.CLEAN
             if ui and hasattr(ui, "console"):
                 ui.console.print(f"[bold green]✓ Memori Contextix berhasil dibuat otomatis ({res['elapsed']}s).[/bold green]\n")
             return True
         else:
+            self.state = ContextState.DIRTY
             if ui and hasattr(ui, "console"):
                 ui.console.print(f"[dim yellow]⚠️ Contextix auto-generate lewati: {res.get('error')}[/dim yellow]\n")
             return False
-
-    def refresh_after_task(self, modified_files: Optional[List[str]] = None) -> bool:
-        """
-        Automatically refreshes Contextix project memory in the background after task execution if files were changed.
-        """
-        if not modified_files:
-            return False
-
-        if not self.is_available():
-            return False
-
-        res = self.run_generate()
-        return res["success"]
 
     def _get_current_mtime(self) -> float:
         """Calculates latest modification timestamp of .context/ files."""
@@ -122,97 +155,142 @@ class ContextixAdapter:
 
     def invalidate_cache(self):
         """Invalidates the in-memory cache."""
+        self._cached_context_data = None
         self._cached_formatted_str = None
         self._last_mtime = 0.0
 
-    def get_formatted_context(self) -> str:
+    def _load_raw_data(self) -> Dict[str, Any]:
+        """Loads and parses raw yaml and markdown data from disk with mtime check."""
+        current_mtime = self._get_current_mtime()
+        if self._cached_context_data is not None and current_mtime <= self._last_mtime and self._last_mtime > 0:
+            return self._cached_context_data
+
+        data: Dict[str, Any] = {
+            "bootstrap": "",
+            "constraints": [],
+            "decisions": [],
+            "project_name": self.context.project_name
+        }
+
+        if os.path.exists(self.bootstrap_path):
+            try:
+                with open(self.bootstrap_path, "r", encoding="utf-8", errors="ignore") as f:
+                    data["bootstrap"] = f.read().strip()
+            except Exception:
+                pass
+
+        if os.path.exists(self.context_yaml_path):
+            try:
+                with open(self.context_yaml_path, "r", encoding="utf-8", errors="ignore") as f:
+                    y_data = yaml.safe_load(f)
+                    if isinstance(y_data, dict):
+                        proj = y_data.get("project", {})
+                        if proj.get("name"):
+                            data["project_name"] = proj.get("name")
+                        data["constraints"] = y_data.get("constraints", [])
+                        data["decisions"] = y_data.get("decisions", [])
+            except Exception:
+                pass
+
+        self._cached_context_data = data
+        self._last_mtime = current_mtime
+        return data
+
+    def get_relevant_context(self, target_scope: Optional[List[str]] = None, summary: str = "") -> str:
         """
-        Returns formatted Contextix project memory string for Layer 2 (Planner) prompt injection.
-        Uses in-memory caching and timestamp invalidation for zero redundant disk reads.
+        Target-Scope Relevant Querying:
+        Instead of dumping the entire .context/ directory (which bloats 4K context windows),
+        extracts ONLY the relevant subset:
+        1. Always include Hard Constraints.
+        2. Filter Decisions & Bootstrap sections matching keywords in target_scope or summary.
         """
         if not self.has_context():
             return ""
 
-        current_mtime = self._get_current_mtime()
-        if self._cached_formatted_str is not None and current_mtime <= self._last_mtime and self._last_mtime > 0:
-            return self._cached_formatted_str
+        data = self._load_raw_data()
+        scope_keywords = set()
+        if target_scope:
+            for s in target_scope:
+                clean_s = os.path.basename(s).lower().replace(".", " ").replace("_", " ").replace("-", " ")
+                scope_keywords.update(w for w in clean_s.split() if len(w) > 2)
 
-        # Re-read and build context string from disk
+        summary_words = [w.lower() for w in summary.split() if len(w) > 3]
+        scope_keywords.update(summary_words)
+
         parts = []
 
-        # 1. bootstrap.md
-        if os.path.exists(self.bootstrap_path):
-            try:
-                with open(self.bootstrap_path, "r", encoding="utf-8", errors="ignore") as f:
-                    content = f.read().strip()
-                    if content:
-                        parts.append(f"--- Contextix Bootstrap Memory ---\n{content}")
-            except Exception:
-                pass
+        # 1. Hard Constraints (Always included)
+        constraints = data.get("constraints", [])
+        if constraints:
+            c_lines = ["--- Contextix Project Constraints (Hard Rules) ---"]
+            for c in constraints:
+                c_str = c if isinstance(c, str) else c.get("rule", str(c))
+                c_lines.append(f" • {c_str}")
+            parts.append("\n".join(c_lines))
 
-        # 2. context.yaml (Decisions, Constraints, Goals)
-        if os.path.exists(self.context_yaml_path):
-            try:
-                with open(self.context_yaml_path, "r", encoding="utf-8", errors="ignore") as f:
-                    data = yaml.safe_load(f)
-                    if isinstance(data, dict):
-                        yaml_summary = []
-                        proj = data.get("project", {})
-                        if proj.get("name"):
-                            yaml_summary.append(f"Proyek: {proj.get('name')} - {proj.get('description', '')}")
+        # 2. Targeted Decisions (Filtered by scope keywords if keywords exist, otherwise top decisions)
+        decisions = data.get("decisions", [])
+        if decisions:
+            relevant_decisions = []
+            for d in decisions:
+                d_str = str(d).lower()
+                if not scope_keywords or any(kw in d_str for kw in scope_keywords):
+                    if isinstance(d, dict):
+                        relevant_decisions.append(f" • {d.get('what', '')} (Why: {d.get('why', '')})")
+                    else:
+                        relevant_decisions.append(f" • {d}")
 
-                        constraints = data.get("constraints", [])
-                        if constraints:
-                            yaml_summary.append("Hard Constraints Proyek:")
-                            for c in constraints:
-                                yaml_summary.append(f" - {c if isinstance(c, str) else c.get('rule', str(c))}")
+            if not relevant_decisions:  # Fallback to top 3 decisions if no specific keyword matched
+                for d in decisions[:3]:
+                    if isinstance(d, dict):
+                        relevant_decisions.append(f" • {d.get('what', '')} (Why: {d.get('why', '')})")
+                    else:
+                        relevant_decisions.append(f" • {d}")
 
-                        decisions = data.get("decisions", [])
-                        if decisions:
-                            yaml_summary.append("Keputusan Arsitektur Terdaftar:")
-                            for d in decisions[:5]:  # Limit top 5 decisions
-                                if isinstance(d, dict):
-                                    yaml_summary.append(f" - {d.get('what', '')} (Sebab: {d.get('why', '')})")
-                                else:
-                                    yaml_summary.append(f" - {d}")
+            if relevant_decisions:
+                parts.append("--- Contextix Relevant Decisions ---\n" + "\n".join(relevant_decisions[:4]))
 
-                        if yaml_summary:
-                            parts.append("--- Contextix Structured Rules & Decisions ---\n" + "\n".join(yaml_summary))
-            except Exception:
-                pass
+        # 3. Targeted Bootstrap excerpt (first 500 chars if present)
+        bootstrap = data.get("bootstrap", "")
+        if bootstrap and len(bootstrap) > 20:
+            excerpt = bootstrap[:600] + ("..." if len(bootstrap) > 600 else "")
+            parts.append(f"--- Contextix Bootstrap Overview ---\n{excerpt}")
 
-        formatted = "\n\n".join(parts).strip()
-        self._cached_formatted_str = formatted
-        self._last_mtime = current_mtime
-        return formatted
+        return "\n\n".join(parts).strip()
+
+    def get_agent_state_context(
+        self,
+        current_task: str = "",
+        current_phase: str = "Planning",
+        completed_actions: Optional[List[str]] = None
+    ) -> str:
+        """
+        Formats active Dinggo Agent State (runtime state distinct from Contextix context cache).
+        """
+        state_lines = [
+            f"--- Dinggo Active Agent State ---",
+            f"Task: {current_task or 'General'}",
+            f"Phase: {current_phase}",
+            f"Context Memory State: {self.state.value}"
+        ]
+        if completed_actions:
+            state_lines.append("Aksi Terakhir: " + ", ".join(completed_actions[-3:]))
+        return "\n".join(state_lines)
 
     def get_status(self) -> Dict[str, Any]:
-        """Returns metadata summary for Contextix status display."""
+        """Returns metadata summary and current state machine status for UI display."""
         available = self.is_available()
         has_ctx = self.has_context()
-
-        decisions_count = 0
-        constraints_count = 0
-        project_name = self.context.project_name
-
-        if has_ctx and os.path.exists(self.context_yaml_path):
-            try:
-                with open(self.context_yaml_path, "r", encoding="utf-8", errors="ignore") as f:
-                    data = yaml.safe_load(f)
-                    if isinstance(data, dict):
-                        project_name = data.get("project", {}).get("name", project_name)
-                        decisions_count = len(data.get("decisions", []))
-                        constraints_count = len(data.get("constraints", []))
-            except Exception:
-                pass
+        data = self._load_raw_data() if has_ctx else {}
 
         return {
+            "state": self.state.value,
             "available": available,
             "has_context": has_ctx,
             "context_dir": self.context_dir,
-            "project_name": project_name,
-            "decisions_count": decisions_count,
-            "constraints_count": constraints_count,
+            "project_name": data.get("project_name", self.context.project_name),
+            "decisions_count": len(data.get("decisions", [])),
+            "constraints_count": len(data.get("constraints", [])),
             "bootstrap_exists": os.path.exists(self.bootstrap_path),
             "yaml_exists": os.path.exists(self.context_yaml_path)
         }

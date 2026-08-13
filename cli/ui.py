@@ -327,9 +327,18 @@ class TerminalUI:
         """Displays Contextix project memory integration dashboard."""
         avail_str = "[bold green]ONLINE ✅[/bold green]" if ctx_status.get("available") else "[bold red]NOT INSTALLED ❌[/bold red]"
         ctx_str = "[bold green]TERBENTUK ✅[/bold green]" if ctx_status.get("has_context") else "[bold yellow]BELUM ADA ⚠️[/bold yellow]"
+        
+        state_val = ctx_status.get("state", "CLEAN")
+        state_badges = {
+            "CLEAN": "[bold white on green] CLEAN ✅ [/bold white on green]",
+            "DIRTY": "[bold white on yellow] DIRTY ⚠️ [/bold white on yellow]",
+            "REFRESHING": "[bold white on cyan] REFRESHING 🔄 [/bold white on cyan]"
+        }
+        state_badge = state_badges.get(state_val, f"[bold white]{state_val}[/bold white]")
 
         info_text = (
             f"[bold yellow]Contextix CLI Status:[/bold yellow] {avail_str}\n"
+            f"[bold yellow]State Sync Memori RAM:[/bold yellow] {state_badge}\n"
             f"[bold yellow]Status Memori .context/:[/bold yellow] {ctx_str} ([dim]{ctx_status.get('context_dir')}[/dim])\n"
             f"[bold yellow]Nama Proyek (Contextix):[/bold yellow] [green]{ctx_status.get('project_name')}[/green]\n"
             f"[bold yellow]Keputusan Terdaftar (Decisions):[/bold yellow] [cyan]{ctx_status.get('decisions_count')} keputusan[/cyan]\n"
@@ -339,7 +348,7 @@ class TerminalUI:
         )
         self.console.print(Panel(
             Text.from_markup(info_text),
-            title="[bold cyan]📦 Contextix Memory Integration Status[/bold cyan]",
+            title="[bold cyan]📦 Contextix Memory Integration Dashboard[/bold cyan]",
             border_style="cyan"
         ))
 

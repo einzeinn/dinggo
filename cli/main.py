@@ -131,10 +131,11 @@ def main():
                 )
                 continue
 
-            # Get active long-term code graph context filtered by target scope + Contextix project rules
+            # Get active long-term code graph context + scope-targeted Contextix rules + active Dinggo agent state
             long_term_ctx = long_term_memory.get_formatted_graph_context(target_scope=target_scope)
-            contextix_ctx = contextix_adapter.get_formatted_context()
-            combined_long_term_ctx = f"{contextix_ctx}\n\n{long_term_ctx}".strip() if contextix_ctx else long_term_ctx
+            contextix_ctx = contextix_adapter.get_relevant_context(target_scope=target_scope, summary=summary)
+            agent_state_ctx = contextix_adapter.get_agent_state_context(current_task=summary, current_phase="Planning")
+            combined_long_term_ctx = f"{agent_state_ctx}\n\n{contextix_ctx}\n\n{long_term_ctx}".strip()
 
             # Layer 2: Planning Loop with live updating status timer & memory
             revision_feedback: Optional[str] = None
@@ -196,6 +197,8 @@ def main():
                 if res["success"]:
                     completed_count += 1
                     execution_summaries.append(f"Step {step_num} [{action}]: Berhasil")
+                    if action in ("write_file", "edit_file", "generate_code"):
+                        contextix_adapter.mark_dirty()
                 else:
                     execution_summaries.append(f"Step {step_num} [{action}]: Gagal ({res.get('error')})")
                     ui.console.print(f"[bold red]Proses terhenti di step {step_num} karena terjadi kesalahan.[/bold red]")
@@ -216,9 +219,9 @@ def main():
             # Refresh Code Knowledge Graph after file modifications
             long_term_memory.build_code_graph()
 
-            # Auto-refresh Contextix project memory state after task execution
+            # Non-blocking post-execution batch refresh for Contextix project memory
             if completed_count > 0:
-                contextix_adapter.refresh_after_task(execution_summaries)
+                contextix_adapter.refresh_post_execution(execution_summaries)
 
             ui.console.print(f"\n[bold green]✨ Selesai: {completed_count}/{len(steps)} langkah telah dieksekusi.[/bold green] [dim cyan](⏱️ Total Eksekusi: {t_exec_total:.2f}s)[/dim cyan]")
 
