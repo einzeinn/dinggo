@@ -14,7 +14,7 @@ class OllamaClient:
 
     def __init__(self, base_url: Optional[str] = None):
         self.base_url = (base_url or os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")).rstrip("/")
-        self.force_unload = os.getenv("FORCE_UNLOAD_BETWEEN_LAYERS", "true").lower() == "true"
+        self.force_unload = os.getenv("FORCE_UNLOAD_BETWEEN_LAYERS", "false").lower() == "true"
         self.active_model: Optional[str] = None
 
     def is_available(self) -> bool:

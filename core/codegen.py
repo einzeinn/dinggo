@@ -42,7 +42,7 @@ class CodegenDelegate:
 
     def __init__(self, ollama_client: Optional[OllamaClient] = None, config_path: str = "config/models.yaml"):
         self.client = ollama_client or OllamaClient()
-        self.model_name = os.getenv("MODEL_CODEGEN", "qwen2.5-coder:3b")
+        self.model_name = os.getenv("MODEL_CODEGEN", "qwen2.5:3b")
         self.system_prompt = self._load_system_prompt(config_path)
 
     def _load_system_prompt(self, config_path: str) -> str:

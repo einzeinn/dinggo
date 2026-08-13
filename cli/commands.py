@@ -64,10 +64,10 @@ class SlashCommandHandler:
         elif main_cmd in ("/config", "/settings", "config", "settings"):
             config_data = {
                 "OLLAMA_BASE_URL": os.getenv("OLLAMA_BASE_URL", "http://localhost:11434"),
-                "MODEL_INTENT_PARSER": os.getenv("MODEL_INTENT_PARSER", "gemma-sea-lion"),
+                "MODEL_INTENT_PARSER": os.getenv("MODEL_INTENT_PARSER", "hf.co/aisingapore/Gemma-SEA-LION-v4.5-E2B-IT-GGUF:Q4_K_M"),
                 "MODEL_PLANNER": os.getenv("MODEL_PLANNER", "qwen3.5:4b"),
                 "MODEL_CODEGEN": os.getenv("MODEL_CODEGEN", "qwen2.5:3b"),
-                "FORCE_UNLOAD_BETWEEN_LAYERS": os.getenv("FORCE_UNLOAD_BETWEEN_LAYERS", "true"),
+                "FORCE_UNLOAD_BETWEEN_LAYERS": os.getenv("FORCE_UNLOAD_BETWEEN_LAYERS", "false"),
                 "MAX_JSON_RETRY": os.getenv("MAX_JSON_RETRY", "3"),
                 "OLLAMA_NUM_GPU": os.getenv("OLLAMA_NUM_GPU", "99"),
                 "OLLAMA_NUM_THREAD": os.getenv("OLLAMA_NUM_THREAD", "4"),
@@ -78,7 +78,7 @@ class SlashCommandHandler:
         elif main_cmd in ("/models", "models"):
             installed = self.client.list_installed_models()
             active_models = {
-                "Layer 1 (Intent)": os.getenv("MODEL_INTENT_PARSER", "gemma-sea-lion"),
+                "Layer 1 (Intent)": os.getenv("MODEL_INTENT_PARSER", "hf.co/aisingapore/Gemma-SEA-LION-v4.5-E2B-IT-GGUF:Q4_K_M"),
                 "Layer 2 (Planner)": os.getenv("MODEL_PLANNER", "qwen3.5:4b"),
                 "Layer 3 (Codegen)": os.getenv("MODEL_CODEGEN", "qwen2.5:3b")
             }
