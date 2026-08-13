@@ -73,21 +73,38 @@ class ContextixAdapter:
 
         # Method 1: Direct Python API call (fastest, cross-platform, zero subprocess overhead)
         try:
+            from pathlib import Path as _Path
             from contextix.core import generate_memory
-            generate_memory(self.working_dir)
+            generate_memory(_Path(self.working_dir))
             elapsed = round(time.time() - start_t, 2)
             self.invalidate_cache()
             self.state = ContextState.CLEAN
             return {"success": True, "elapsed": elapsed, "output": "Direct Python API generate_memory completed."}
         except Exception as e_api:
-            pass
+            api_error = str(e_api)
 
-        # Method 2: Subprocess execution fallback (sys.executable -m contextix or contextix executable)
-        cmds = [
-            [sys.executable, "-m", "contextix", "generate"],
-            ["contextix", "generate"]
-        ]
-        last_error = ""
+        # Method 2: Subprocess via the interpreter that has contextix installed
+        # Detect interpreter that owns contextix package to avoid cross-environment PATH issues
+        try:
+            import contextix as _ctx_mod
+            import inspect
+            ctx_python = os.path.join(
+                os.path.dirname(os.path.dirname(inspect.getfile(_ctx_mod))),
+                "Scripts", "python.exe"
+            )
+            if not os.path.exists(ctx_python):
+                ctx_python = None
+        except Exception:
+            ctx_python = None
+
+        # Build fallback command list: contextix-env python > sys.executable > global CLI
+        cmds = []
+        if ctx_python:
+            cmds.append([ctx_python, "-m", "contextix", "generate"])
+        cmds.append([sys.executable, "-m", "contextix", "generate"])
+        cmds.append(["contextix", "generate"])
+
+        last_error = api_error
 
         for cmd in cmds:
             try:
@@ -105,6 +122,9 @@ class ContextixAdapter:
                     return {"success": True, "elapsed": elapsed, "output": res.stdout.strip()}
                 else:
                     last_error = res.stderr.strip() or res.stdout.strip() or f"Exit code {res.returncode}"
+            except subprocess.TimeoutExpired:
+                last_error = f"Timeout setelah 35s saat menjalankan: {' '.join(cmd)}"
+                continue
             except Exception as ex:
                 last_error = str(ex)
 

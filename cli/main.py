@@ -105,8 +105,8 @@ def main():
             summary = intent_data.get("summary", "")
             target_scope = intent_data.get("target_scope", [])
 
-            # 1. CONVERSATION
-            if category == "CONVERSATION" or (not is_task and category != "CLARIFICATION" and task_type in ("chat", "general_chat")):
+            # 1. CONVERSATION — cek category atau is_task=False (tidak bergantung pada task_type spesifik)
+            if category == "CONVERSATION" or (not is_task and category not in ("CLARIFICATION", "TASK")):
                 response_msg = direct_resp or summary or "Halo! Ada yang bisa saya bantu dengan proyek Anda hari ini?"
                 ui.render_direct_response(response_msg, elapsed=t_intent_elapsed)
                 short_term_memory.add_turn(

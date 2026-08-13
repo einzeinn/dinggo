@@ -1,0 +1,281 @@
+{
+  "schema_version": "1",
+  "sources": [
+    {
+      "path": "cli/__init__.py",
+      "role": "source_code",
+      "file_type": "python",
+      "sha256": "287438d59f522b5958228c4fb3c6f0597ab32268e0437e8ed2c81bf8c526c764"
+    },
+    {
+      "path": "cli/commands.py",
+      "role": "source_code",
+      "file_type": "python",
+      "sha256": "a5a7ce5d6d596436696d13ff175d4130c0217a7494b7a321ac59af0829828e29"
+    },
+    {
+      "path": "cli/main.py",
+      "role": "source_code",
+      "file_type": "python",
+      "sha256": "2a044d9c48cc51760866092c4f8e43073209c8efee1a9317cbba1f63465aca97"
+    },
+    {
+      "path": "cli/ui.py",
+      "role": "source_code",
+      "file_type": "python",
+      "sha256": "d21f3687b2a8f358715d9e8a2634c66a751ff6a7a0a6c72d68bb101b13c18c3f"
+    },
+    {
+      "path": "config/models.yaml",
+      "role": "configuration",
+      "file_type": "yaml",
+      "sha256": "62f4283dbc2aa845ff8adbd6153ee5e9e394557fa22a812da06f5a282b3e8d30"
+    },
+    {
+      "path": "core/__init__.py",
+      "role": "source_code",
+      "file_type": "python",
+      "sha256": "48f2a8178417e0a76715ebb7bbcf9765d90cef5f5ada3d81b9f1db3af8dbed79"
+    },
+    {
+      "path": "core/codegen.py",
+      "role": "source_code",
+      "file_type": "python",
+      "sha256": "680a6c0daa6ca965d1d409d1d6acb325987f00f5e5d8e6310425a21aab0811b1"
+    },
+    {
+      "path": "core/executor.py",
+      "role": "source_code",
+      "file_type": "python",
+      "sha256": "f95e71b5ca740481a840ece470c398d928d77f5cc6382ff6f444eed23936384f"
+    },
+    {
+      "path": "core/intent_parser.py",
+      "role": "source_code",
+      "file_type": "python",
+      "sha256": "7486a2cc300dbfea3f195517224a5392f9bace0dcc7fee3966fc149408f3aab6"
+    },
+    {
+      "path": "core/memory/__init__.py",
+      "role": "source_code",
+      "file_type": "python",
+      "sha256": "354b2e5fbe6e050ea50e04984928c90cfaeb48b6b54d7242167a46b9a5556e96"
+    },
+    {
+      "path": "core/memory/contextix_adapter.py",
+      "role": "source_code",
+      "file_type": "python",
+      "sha256": "0ae4ad011b2e2949ff39b15e5b030605a1716104ab0344be92fe5a27602479d4"
+    },
+    {
+      "path": "core/memory/long_term.py",
+      "role": "source_code",
+      "file_type": "python",
+      "sha256": "d7aaf2b6a45479f361ea0068b411dd8e7538cb15b45efd13e3157577c621b326"
+    },
+    {
+      "path": "core/memory/project_context.py",
+      "role": "source_code",
+      "file_type": "python",
+      "sha256": "223f5d2a6a1beb19e56ec065078f10944b8a9779097e7aeb3342142bb3925881"
+    },
+    {
+      "path": "core/memory/short_term.py",
+      "role": "source_code",
+      "file_type": "python",
+      "sha256": "8a6342fc9218f475b2a9bf672d8c29db44eb2bcc99e6ec6455b79de3689705f7"
+    },
+    {
+      "path": "core/ollama_client.py",
+      "role": "source_code",
+      "file_type": "python",
+      "sha256": "be912d532538e990bba8afb089c80adbafb9ef982f6f4df824363f32a0f96476"
+    },
+    {
+      "path": "core/planner.py",
+      "role": "source_code",
+      "file_type": "python",
+      "sha256": "f652da1a23d3be2cd52afd061bb532e0ddbbe59b1a9028ee854c1b876ab92f50"
+    },
+    {
+      "path": "core/validator.py",
+      "role": "source_code",
+      "file_type": "python",
+      "sha256": "7222c46d3b63d96c6ba0aece6367b2770c80b1ab298f2cb9afed6e8f81d0295e"
+    },
+    {
+      "path": "dinggo.egg-info/dependency_links.txt",
+      "role": "configuration",
+      "file_type": "text",
+      "sha256": "01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b"
+    },
+    {
+      "path": "dinggo.egg-info/entry_points.txt",
+      "role": "configuration",
+      "file_type": "text",
+      "sha256": "f5930217c7822fc7c7bf090879448c86ffc2fd6ca6c2801715962ecc8852db40"
+    },
+    {
+      "path": "dinggo.egg-info/requires.txt",
+      "role": "configuration",
+      "file_type": "text",
+      "sha256": "f83365f43237656c59e5e39ecb8ec278b593ca2c25622ac608e3bf83da4067c4"
+    },
+    {
+      "path": "dinggo.egg-info/SOURCES.txt",
+      "role": "configuration",
+      "file_type": "text",
+      "sha256": "e96d0f91292d98de3597efedc3b5404ad41c548a6ab7f9c88ee72967c6cedd3e"
+    },
+    {
+      "path": "dinggo.egg-info/top_level.txt",
+      "role": "configuration",
+      "file_type": "text",
+      "sha256": "81a9faf45b69e6791b6a0d36d1da58f0207dfc074bb1398965d15f6b34c606e7"
+    },
+    {
+      "path": "docs/01-Vision.md",
+      "role": "documentation",
+      "file_type": "markdown",
+      "sha256": "22e5233d0fd2dffe616c25522071c0b92dadc464d54e1aec9c4fc1548310257f"
+    },
+    {
+      "path": "docs/02-PRD.md",
+      "role": "documentation",
+      "file_type": "markdown",
+      "sha256": "2f4521910d6c3dfda8bc9cd471f1a64e5d06fc6e133a7e61fb60c013d0587ffd"
+    },
+    {
+      "path": "docs/06-Architecture.md",
+      "role": "documentation",
+      "file_type": "markdown",
+      "sha256": "3ef932e83e6405ffb4c5743d5b2fe2407e171a171c41e2d7327297b11ce616e5"
+    },
+    {
+      "path": "docs/07-TechnicalDecisions.md",
+      "role": "documentation",
+      "file_type": "markdown",
+      "sha256": "8d9e47c7e71525cff4bc655ddc79b590ff05adfb549b0afb56789a6499b4b6e3"
+    },
+    {
+      "path": "docs/08-design.md",
+      "role": "documentation",
+      "file_type": "markdown",
+      "sha256": "7632c2b719bbbc72477c5735b85d0146a62b46cf0494aecfc1c4611c6e08c038"
+    },
+    {
+      "path": "docs/Benchmarking Performance and Abstraction.md",
+      "role": "documentation",
+      "file_type": "markdown",
+      "sha256": "91dc153d300f531d9ee1ca2d6fd4cff248cdd9d63e564ff144e06954f7528a6e"
+    },
+    {
+      "path": "docs/README_KESIAPAN.md",
+      "role": "documentation",
+      "file_type": "markdown",
+      "sha256": "488ed7d3c2b946374110c8df373d2be3744bbe15b1084603f17e0c8d401f99b6"
+    },
+    {
+      "path": "docs/rfc/RFC-001.md",
+      "role": "documentation",
+      "file_type": "markdown",
+      "sha256": "510757259fea5b1ddad4a58854bab764d813335251e8cd4e490399827ffa8f36"
+    },
+    {
+      "path": "pyproject.toml",
+      "role": "configuration",
+      "file_type": "toml",
+      "sha256": "7f9fb3671276e1024d58237e6587e075bcbd4aa27f62127eed41a4c1c1b77a88"
+    },
+    {
+      "path": "README.md",
+      "role": "identity",
+      "file_type": "markdown",
+      "sha256": "d2ff841dd410fd5d8ba5224c0256f9fcaeb3913725867afa53e151bdbd008b48"
+    },
+    {
+      "path": "requirements.txt",
+      "role": "configuration",
+      "file_type": "text",
+      "sha256": "b56b300f192fe2cbef3795786cfc92be91dbf448f48bbaf9d65628e2c19440cd"
+    },
+    {
+      "path": "run_benchmark.py",
+      "role": "source_code",
+      "file_type": "python",
+      "sha256": "da9af8f70b2a34024d158f5b10f2524c2d550e2497e27e081bb5397ccb09e9c8"
+    },
+    {
+      "path": "tests/__init__.py",
+      "role": "source_code",
+      "file_type": "python",
+      "sha256": "95c442caf6be784da5925683533c461f1f890a7987c1e067b8f4d421722185f6"
+    },
+    {
+      "path": "tests/test_benchmark.py",
+      "role": "source_code",
+      "file_type": "python",
+      "sha256": "160b3983c982a6265a67d15a240e03fbdebdab051a4546251a2323a94e3c985a"
+    },
+    {
+      "path": "tests/test_commands.py",
+      "role": "source_code",
+      "file_type": "python",
+      "sha256": "e64a88263836b565b5d828ab996c5041cbb493e3e11131bbab75be1c0b0f4248"
+    },
+    {
+      "path": "tests/test_contextix_adapter.py",
+      "role": "source_code",
+      "file_type": "python",
+      "sha256": "e3f285f3f4573f3db2a8627259b5deb8b650e995c51b37c2af8d88a99902edeb"
+    },
+    {
+      "path": "tests/test_file_ops.py",
+      "role": "source_code",
+      "file_type": "python",
+      "sha256": "1bb9288c5c3ba88118158d77e96c1562e7bba0e4cac64302b3db2b7db9827980"
+    },
+    {
+      "path": "tests/test_intent_and_planner_retry.py",
+      "role": "source_code",
+      "file_type": "python",
+      "sha256": "0294d8c8d95c5aac76a87f43c5608bc307b1d8d99a5d44ed9954cbcbf123e7ff"
+    },
+    {
+      "path": "tests/test_memory.py",
+      "role": "source_code",
+      "file_type": "python",
+      "sha256": "55f8d376a3230ca4b8303b5e7cd2b26119bba7de950e7990cd8589b67e5ce49a"
+    },
+    {
+      "path": "tests/test_ollama_client.py",
+      "role": "source_code",
+      "file_type": "python",
+      "sha256": "a000d892e4c258ab6aba8f2dd7dc74b6c4f9e56b4683ecfe2d1a9c4a714f14d4"
+    },
+    {
+      "path": "tests/test_validator.py",
+      "role": "source_code",
+      "file_type": "python",
+      "sha256": "39ef7590dfb32907c82596473ed4683934bc9200b8a37ff36718bf67f7f50faf"
+    },
+    {
+      "path": "tools/__init__.py",
+      "role": "source_code",
+      "file_type": "python",
+      "sha256": "c82842bb5284e16d37b06cfa7fbbfe2d4db546cd97adaf01636da34e3b180b65"
+    },
+    {
+      "path": "tools/file_ops.py",
+      "role": "source_code",
+      "file_type": "python",
+      "sha256": "4f8310036ad6f374c11f061a3e27a1fac69ec22ab53da9465babdb53a07cb6ab"
+    },
+    {
+      "path": "tools/shell_ops.py",
+      "role": "source_code",
+      "file_type": "python",
+      "sha256": "ff48dc3268f1b7f08d5e7bdc060cc0debc32730a17d472df68b28cb3a41c164e"
+    }
+  ]
+}
