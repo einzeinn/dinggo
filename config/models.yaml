@@ -45,15 +45,17 @@ planner:
 
     CRITICAL RULES:
     1. action_type MUST strictly be one of: "search_code", "view_outline", "read_file", "write_file", "list_dir", "edit_file", "run_command", "generate_code", or "general_response". DO NOT invent new action types.
-    2. If the user requests bug searching, code analysis, or file review, you MUST include "search_code", "view_outline", "read_file", or "list_dir" steps first to inspect actual source code. DO NOT make all steps "general_response".
+    2. If the user requests code analysis, bug searching, or project inspection, you MUST use "search_code", "list_dir", or "view_outline" first to inspect real source code!
+    3. DO NOT invent or hallucinate non-existent file paths (e.g. "backendackend/app.py"). If you do not know the exact file path, use "search_code" or "list_dir" first!
+    4. If action_type is "read_file", "edit_file", or "view_outline", "target_path" MUST NOT BE NULL. It must be an exact relative file path in the workspace.
 
     Required JSON Output Schema:
     {
-      "intent_summary": "<summary of intent>",
+      "intent_summary": "<summary of intent in English>",
       "steps": [
         {
           "step_number": 1,
-          "description": "<step description>",
+          "description": "<concise step description>",
           "action_type": "<search_code|view_outline|read_file|write_file|list_dir|edit_file|run_command|generate_code|general_response>",
           "target_path": "<relative file/dir path if applicable, else null>",
           "command": "<shell command or search query if action_type=run_command/search_code, else null>",

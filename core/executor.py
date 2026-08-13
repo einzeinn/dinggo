@@ -29,7 +29,7 @@ class Executor:
 
     def resolve_target_path(self, target_path: Optional[str], instruction: str, project_root: str = ".") -> Optional[str]:
         """
-        Intelligently resolves target_path using exact checks, fuzzy workspace matching, and instruction parsing.
+        Intelligently resolves target_path using exact checks, fuzzy workspace matching, and instruction regex parsing.
         """
         clean_path = str(target_path).strip() if target_path else None
         if clean_path and clean_path.lower() in ("-", "null", "n/a", "none", ""):
@@ -51,8 +51,23 @@ class Executor:
                     if f_lower == target_filename or (target_no_ext and target_no_ext == os.path.splitext(f_lower)[0]):
                         return rel_file
 
+        # Extract file paths from instruction (e.g., 'backend/app.py', 'cli/main.py', 'app.py')
+        import re as _re
+        path_matches = _re.findall(r"([a-zA-Z0-9_\-\/\\]+\.[a-zA-Z0-9]+)", instruction or "")
+        for candidate in path_matches:
+            cand_clean = candidate.strip("\\/ ")
+            cand_full = os.path.join(project_root, cand_clean)
+            if os.path.exists(cand_full):
+                return cand_clean
+            cand_base = os.path.basename(cand_clean).lower()
+            for root, dirs, files in os.walk(project_root):
+                dirs[:] = [d for d in dirs if not d.startswith(".") and d not in ("venv", ".venv", "__pycache__", "build", "dist", "node_modules")]
+                for f in files:
+                    if f.lower() == cand_base:
+                        return os.path.relpath(os.path.join(root, f), project_root)
+
         combined_text = f"{clean_path or ''} {instruction}".lower()
-        words = [w for w in combined_text.replace("_", " ").replace("-", " ").replace(".", " ").split() if len(w) > 3 and w not in ("file", "coba", "perbaiki", "ubah", "baca", "tulis", "buat", "agar", "isinya", "murni", "dokumen", "asli", "yang", "profesional", "mudah", "dibaca")]
+        words = [w for w in combined_text.replace("_", " ").replace("-", " ").replace(".", " ").split() if len(w) > 3 and w not in ("file", "coba", "perbaiki", "ubah", "baca", "tulis", "buat", "agar", "isinya", "murni", "dokumen", "asli", "yang", "profesional", "mudah", "dibaca", "code", "read", "edit")]
         
         matches = []
         for root, dirs, files in os.walk(project_root):
@@ -98,13 +113,24 @@ class Executor:
         # 0. general_response handling
         if action_type in ("general_response", "respond", "info", "general_task", "none"):
             result["success"] = True
-            result["output"] = instruction or step.get("description", "Respon umum selesai.")
+            result["output"] = instruction or step.get("description", "General response step completed.")
             return result
 
-        # Fail explicitly if file operation has no resolvable target_path
+        # Graceful fallback for read_file/view_outline when target_path is not resolvable
+        if action_type in ("read_file", "view_outline") and (not target_full_path or not os.path.exists(target_full_path)):
+            search_query = command or instruction or raw_target_path or ""
+            search_res = search_code(query=search_query, root_dir=project_root)
+            if search_res["success"] and search_res.get("output"):
+                result["action_type"] = "search_code"
+                result["target_path"] = search_query
+                result["success"] = True
+                result["output"] = search_res["output"]
+                return result
+
+        # Fail explicitly if write_file/edit_file has no target_path
         if action_type in ("read_file", "write_file", "edit_file", "generate_code", "view_outline") and not target_full_path:
             result["success"] = False
-            result["error"] = f"Gagal eksekusi [{action_type}]: Target path file tidak ditentukan oleh Planner dan tidak ditemukan di proyek."
+            result["error"] = f"Execution failed [{action_type}]: Target file path was not specified by Planner and not found in project."
             return result
 
         # 1. read_file
