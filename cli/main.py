@@ -153,11 +153,12 @@ def main():
 
             # 3. QUESTION — jawab langsung pertanyaan tentang proyek pakai LLM + konteks
             #    Skip pipeline Planner→Executor; kirim pertanyaan + context ke model planner
-            _QUESTION_TASK_TYPES = {"question", "inquiry", "ask", "info", "read_file", "greeting"}
+            _QUESTION_TASK_TYPES = {"question", "inquiry", "ask", "info", "read_file", "information_retrieval", "greeting"}
             _is_question = (
-                task_type in _QUESTION_TASK_TYPES
+                category == "QUESTION"
+                or task_type in _QUESTION_TASK_TYPES
                 or (not is_task and category == "TASK")
-                or any(kw in summary.lower() for kw in ("menanyakan", "bertanya", "tanya", "apa ", "siapa ", "kenapa ", "mengapa "))
+                or any(kw in summary.lower() for kw in ("menanyakan", "bertanya", "tanya", "apa ", "siapa ", "kenapa ", "mengapa ", "jelaskan", "bagaimana "))
             )
             if _is_question:
                 # Gather project context for informed answer
@@ -167,8 +168,9 @@ def main():
 
                 q_system = (
                     "Anda adalah asisten proyek Dinggo. Jawab pertanyaan pengguna berdasarkan konteks proyek yang diberikan.\n"
-                    "Jawab dalam Bahasa Indonesia secara ringkas, informatif, dan akurat.\n"
-                    "Jika konteks proyek tidak mencukupi untuk menjawab, sampaikan dengan jujur bahwa informasi yang tersedia terbatas."
+                    "Jawab dalam Bahasa Indonesia secara ramah, ringkas, informatif, dan langsung ke poin utama.\n"
+                    "DILARANG menuliskan 'Thinking Process', analisis internal, '1. Analyze the Request', atau poin-poin penalaran.\n"
+                    "Langsung berikan jawaban akhir untuk pengguna."
                 )
                 q_prompt = f"[Konteks Proyek]\n{ctx_block}\n\n[Pertanyaan Pengguna]\n{user_input}"
 
@@ -178,8 +180,8 @@ def main():
                         prompt=q_prompt,
                         system_prompt=q_system,
                         json_format=False,
-                        think=True,
-                        temperature=0.3,
+                        think=False,
+                        temperature=0.2,
                         num_ctx=4096,
                         num_predict=512
                     )
@@ -187,7 +189,11 @@ def main():
 
                 if q_res.get("success"):
                     import re as _re
-                    answer = _re.sub(r"<think>[\s\S]*?</think>", "", q_res["response"], flags=_re.IGNORECASE).strip()
+                    raw_ans = q_res["response"]
+                    ans = _re.sub(r"<think>[\s\S]*?</think>", "", raw_ans, flags=_re.IGNORECASE).strip()
+                    # Strip any lingering Thinking Process block if model writes it in text
+                    ans = _re.sub(r"(?:Thinking Process|Proses Berpikir|Reasoning):[\s\S]*?(?=\n\n[A-Z0-9#\*]|\Z)", "", ans, flags=_re.IGNORECASE).strip()
+                    answer = ans or raw_ans.strip()
                 else:
                     answer = f"Maaf, saya gagal menganalisis konteks proyek: {q_res.get('error', 'Unknown error')}"
 

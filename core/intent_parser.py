@@ -11,15 +11,15 @@ from core.ollama_client import OllamaClient
 class IntentSchema(BaseModel):
     category: str = Field(
         default="TASK",
-        description="Kategori intent: TASK, CONVERSATION, atau CLARIFICATION"
+        description="Kategori intent: TASK, CONVERSATION, QUESTION, atau CLARIFICATION"
     )
     is_task: bool = Field(
         default=True,
-        description="True jika instruksi pengerjaan/koding/file/command, False jika sapaan/obrolan/klarifikasi"
+        description="True jika instruksi pengerjaan/koding/file/command, False jika sapaan/obrolan/pertanyaan/klarifikasi"
     )
     task_type: str = Field(
         default="general_task",
-        description="Jenis tugas: create_file, edit_file, read_file, run_command, general_task, chat, atau clarification"
+        description="Jenis tugas: create_file, edit_file, read_file, run_command, general_task, chat, question, information_retrieval, atau clarification"
     )
     target_scope: List[str] = Field(
         default_factory=list,

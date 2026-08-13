@@ -8,6 +8,7 @@ from typing import Dict, Any, Optional, Tuple, List, Generator
 from rich.console import Console
 from rich.panel import Panel
 from rich.text import Text
+from rich.markdown import Markdown
 from rich.syntax import Syntax
 from rich.table import Table
 from rich.prompt import Prompt
@@ -158,12 +159,18 @@ class TerminalUI:
         ))
 
     def render_direct_response(self, message: str, elapsed: Optional[float] = None):
-        """Displays direct casual response for non-task inputs with timer."""
+        """Displays direct casual or informational response for non-task inputs with timer."""
         timer_str = f" [dim cyan](⏱️ {elapsed:.2f}s)[/dim cyan]" if elapsed is not None else ""
+        if "\n" in message or "**" in message or "#" in message or "`" in message:
+            content = Markdown(message)
+        else:
+            content = Text(message, style="bold cyan")
+
         self.console.print(Panel(
-            Text(message, style="bold cyan"),
+            content,
             title=f"[bold cyan]💬 Response[/bold cyan]{timer_str}",
-            border_style="cyan"
+            border_style="cyan",
+            padding=(0, 1)
         ))
 
     def render_clarification(self, message: str, elapsed: Optional[float] = None):
