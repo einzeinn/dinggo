@@ -181,6 +181,7 @@ class Executor:
 
             if val_res["valid"]:
                 result["success"] = True
+                result["code_content"] = code_content
                 result["output"] = f"File {target_path} berhasil dibuat/diubah & lulus validasi semantik."
                 if existing_code:
                     result["diff"] = get_unified_diff(target_full_path, existing_code, code_content)

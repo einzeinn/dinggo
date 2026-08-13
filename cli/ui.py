@@ -54,20 +54,24 @@ class TerminalUI:
             self.session = None
 
     def render_banner(self, working_dir: str):
-        """Displays ASCII logo banner & active working directory."""
+        """Displays futuristic ASCII logo banner & active working directory."""
         logo_text = (
-            "[bold cyan]  ____  _   _  ____  ____  ___  [/bold cyan]\n"
-            "[bold cyan] /  _ \\/ \\ / \\/  _ \\/  _ \\/  _ \\ [/bold cyan]\n"
-            "[bold cyan] | | \\|| | | || | \\|| | \\|| / \\| [/bold cyan]\n"
-            "[bold cyan] | |_/|| | | || |_/|| |_/|| \\_/| [/bold cyan]\n"
-            "[bold cyan] \\____/\\_/ \\_/\\____/\\____/\\____/ [/bold cyan]"
+            "[bold cyan]  ___  ___ _  _ ___ ___  ___   [/bold cyan]\n"
+            "[bold bright_cyan] |   \\|_ _| \\| / __/ __|/ _ \\  [/bold bright_cyan]\n"
+            "[bold bright_blue] | |) | || .` | (_| (_ | (_) | [/bold bright_blue]\n"
+            "[bold blue] |___/___|_|\\_|\\___\\___|\\___/  [/bold blue]"
         )
-        subtitle = f"[dim]Dinggo CLI IDE v0.1.0 — Local AI Orchestrator[/dim]\n[bold yellow]Root:[/bold yellow] [green]{working_dir}[/green]"
+        subtitle = (
+            f"[bold white]🐕 DINGGO CLI IDE[/bold white] [dim]v0.1.0 — Local 3-Layer AI Orchestrator[/dim]\n"
+            f"[bold yellow]📍 Workspace Root:[/bold yellow] [bold green]{working_dir}[/bold green]\n"
+            f"[bold cyan]🤖 Orchestration:[/bold cyan] [blue]Gemma-SEA-LION (L1)[/blue] ➔ [magenta]Qwen3.5-4B (L2)[/magenta] ➔ [yellow]Qwen2.5-Coder (L3)[/yellow]"
+        )
         
         banner_panel = Panel(
             Text.from_markup(f"{logo_text}\n\n{subtitle}"),
-            border_style="cyan",
-            expand=False
+            border_style="bright_cyan",
+            expand=False,
+            padding=(1, 2)
         )
         self.console.print(banner_panel)
 
@@ -77,11 +81,11 @@ class TerminalUI:
         Context manager providing a live updating status spinner with real-time timer ticker (ticks every 100ms).
         """
         badges = {
-            "intent": "[bold blue]🗣️  Nyimak...[/bold blue]",
-            "planner": "[bold magenta]🧠  Mikir dulu...[/bold magenta]",
-            "codegen": "[bold yellow]⚡  Nulis kode...[/bold yellow]",
-            "executor": "[bold green]🔧  Ngerjain:[/bold green]",
-            "validator": "[bold cyan]🔍  Validasi...[/bold cyan]"
+            "intent": "[bold white on blue] 🗣️  L1 INTENT [/bold white on blue] [bold cyan]Nyimak...[/bold cyan]",
+            "planner": "[bold white on magenta] 🧠 L2 PLANNER [/bold white on magenta] [bold magenta]Mikir plan...[/bold magenta]",
+            "codegen": "[bold black on yellow] ⚡ L3 CODEGEN [/bold black on yellow] [bold yellow]Nulis kode...[/bold yellow]",
+            "executor": "[bold white on green] 🔧 L3 EXECUTOR [/bold white on green] [bold green]Ngerjain tool:[/bold green]",
+            "validator": "[bold black on cyan] 🔍 L4 VALIDATOR [/bold black on cyan] [bold cyan]Validasi semantik...[/bold cyan]"
         }
         badge = badges.get(layer.lower(), "ℹ️ ")
         start_time = time.time()
@@ -114,10 +118,10 @@ class TerminalUI:
     def show_status(self, layer: str, message: str):
         """Displays static layer status badge."""
         badges = {
-            "intent": ("[bold blue]🗣️  Nyimak...[/bold blue]", "cyan"),
-            "planner": ("[bold magenta]🧠  Mikir dulu...[/bold magenta]", "magenta"),
-            "codegen": ("[bold yellow]⚡  Nulis kode...[/bold yellow]", "yellow"),
-            "executor": ("[bold green]🔧  Ngerjain:[/bold green]", "green")
+            "intent": ("[bold white on blue] 🗣️  L1 INTENT [/bold white on blue]", "cyan"),
+            "planner": ("[bold white on magenta] 🧠 L2 PLANNER [/bold white on magenta]", "magenta"),
+            "codegen": ("[bold black on yellow] ⚡ L3 CODEGEN [/bold black on yellow]", "yellow"),
+            "executor": ("[bold white on green] 🔧 L3 EXECUTOR [/bold white on green]", "green")
         }
         badge, color = badges.get(layer.lower(), ("ℹ️ ", "white"))
         self.console.print(f"\n{badge} [italic]{message}[/italic]")
@@ -130,20 +134,28 @@ class TerminalUI:
         scope = ", ".join(intent_data.get("target_scope", [])) or "Semua project"
 
         cat_styles = {
-            "TASK": "[bold yellow]TASK[/bold yellow]",
-            "CONVERSATION": "[bold cyan]CONVERSATION[/bold cyan]",
-            "CLARIFICATION": "[bold magenta]CLARIFICATION[/bold magenta]"
+            "TASK": "[bold black on yellow] ⚡ TASK [/bold black on yellow]",
+            "CONVERSATION": "[bold white on cyan] 💬 CONVERSATION [/bold white on cyan]",
+            "CLARIFICATION": "[bold white on magenta] ❓ CLARIFICATION [/bold white on magenta]"
         }
         cat_badge = cat_styles.get(category, f"[bold white]{category}[/bold white]")
 
-        text = (
-            f"[bold]Kategori:[/bold] {cat_badge}\n"
-            f"[bold]Maksud:[/bold] {summary}\n"
-            f"[bold]Tipe Task:[/bold] [cyan]{task_type}[/cyan]\n"
-            f"[bold]Target Scope:[/bold] [yellow]{scope}[/yellow]"
-        )
+        table = Table(show_header=False, box=None, padding=(0, 1))
+        table.add_column("Key", style="bold cyan", width=14)
+        table.add_column("Value")
+
+        table.add_row("Kategori", cat_badge)
+        table.add_row("Tipe Task", f"[bold yellow]{task_type}[/bold yellow]")
+        table.add_row("Maksud/Intent", f"[white]{summary}[/white]")
+        table.add_row("Target Scope", f"[green]{scope}[/green]")
+
         timer_str = f" [dim cyan](⏱️ {elapsed:.2f}s)[/dim cyan]" if elapsed is not None else ""
-        self.console.print(Panel(Text.from_markup(text), title=f"[bold blue]Structured Intent[/bold blue]{timer_str}", border_style="blue"))
+        self.console.print(Panel(
+            table,
+            title=f"[bold blue]🗣️ Layer 1: Structured Intent[/bold blue]{timer_str}",
+            border_style="blue",
+            padding=(0, 1)
+        ))
 
     def render_direct_response(self, message: str, elapsed: Optional[float] = None):
         """Displays direct casual response for non-task inputs with timer."""
@@ -169,13 +181,13 @@ class TerminalUI:
         steps = plan_data.get("steps", [])
 
         table = Table(show_header=True, header_style="bold magenta", box=None, expand=True)
-        table.add_column("No.", style="dim", width=4)
-        table.add_column("Aksi", style="cyan", width=14)
-        table.add_column("Detail Langkah", style="white")
-        table.add_column("Target / Command", style="yellow")
+        table.add_column("Step", style="dim cyan", width=6, justify="center")
+        table.add_column("Aksi / Tool", style="bold yellow", width=15)
+        table.add_column("Detail Langkah Pengerjaan", style="white")
+        table.add_column("Target Path / Command", style="bold green")
 
         for step in steps:
-            no = str(step.get("step_number", ""))
+            no = f"#{step.get('step_number', '')}"
             action = step.get("action_type", "")
             desc = step.get("description", "")
             target = step.get("target_path") or step.get("command") or "-"
@@ -184,9 +196,10 @@ class TerminalUI:
         timer_str = f" [dim magenta](⏱️ {elapsed:.2f}s)[/dim magenta]" if elapsed is not None else ""
         panel = Panel(
             table,
-            title=f"[bold magenta]📋 Plan: {summary}[/bold magenta]{timer_str}",
+            title=f"[bold magenta]🧠 Layer 2: Execution Plan — {summary}[/bold magenta]{timer_str}",
             border_style="magenta",
-            expand=False
+            expand=False,
+            padding=(1, 2)
         )
         self.console.print("\n", panel)
 
@@ -195,7 +208,7 @@ class TerminalUI:
         Prompts user to confirm, cancel, or revise the plan.
         Returns ('Y'|'N'|'R', revision_text)
         """
-        self.console.print("\n[bold yellow][Y] Lanjut    [N] Batal    [R] Revisi Plan[/bold yellow]")
+        self.console.print("\n[bold yellow]⚡ KONFIRMASI EKSKUSI PLAN:[/bold yellow]  [bold green][Y] ✅ Lanjut[/bold green]  │  [bold red][N] ❌ Batal[/bold red]  │  [bold magenta][R] 📝 Revisi Plan[/bold magenta]")
         while True:
             try:
                 choice = Prompt.ask("[bold cyan]Pilihan Anda[/bold cyan]", choices=["y", "n", "r", "Y", "N", "R"], default="y").lower()
@@ -213,7 +226,7 @@ class TerminalUI:
         """
         Mandatory safety confirmation dialog before running shell commands.
         """
-        self.console.print("\n[bold red]⚠️  PERINGATAN KEAMANAN EKSEKUSI SHELL COMMAND[/bold red]")
+        self.console.print("\n[bold red]⚠️ PERINGATAN KEAMANAN EKSEKUSI SHELL COMMAND[/bold red]")
         self.console.print(Panel(
             Text.from_markup(f"[bold white]{command}[/bold white]"),
             title="[bold yellow]Command yang akan dijalankan[/bold yellow]",
@@ -238,13 +251,35 @@ class TerminalUI:
             border_style="green"
         ))
 
+    def render_code_preview(self, file_path: str, code_content: str, max_lines: int = 20):
+        """Renders syntax-highlighted preview of newly written code/document."""
+        if not code_content or not code_content.strip():
+            return
+        lines = code_content.splitlines()
+        preview_lines = lines[:max_lines]
+        preview_text = "\n".join(preview_lines)
+        if len(lines) > max_lines:
+            preview_text += f"\n... ({len(lines) - max_lines} baris lainnya)"
+
+        ext = os.path.splitext(file_path)[1].lower().strip(".")
+        lexer_name = ext if ext in ("py", "json", "yaml", "yml", "md", "html", "css", "sh", "txt") else "text"
+        syntax = Syntax(preview_text, lexer_name, theme="monokai", line_numbers=True)
+        self.console.print(Panel(
+            syntax,
+            title=f"[bold cyan]Pratinjau Kode: {file_path}[/bold cyan]",
+            border_style="cyan"
+        ))
+
     def render_step_result(self, step_num: int, action: str, result: Dict[str, Any], elapsed: Optional[float] = None):
         """Displays step completion checklist icon, output/error, and execution timer."""
         timer_str = f" [dim green](⏱️ {elapsed:.2f}s)[/dim green]" if elapsed is not None else ""
         if result["success"]:
             self.console.print(f"[bold green]  ✓ Step {step_num} [{action}]: Selesai[/bold green]{timer_str}")
+            target_path = result.get("target_path", "file")
             if result.get("diff"):
-                self.render_diff(result.get("target_path", "file"), result["diff"])
+                self.render_diff(target_path, result["diff"])
+            elif result.get("code_content"):
+                self.render_code_preview(target_path, result["code_content"])
             elif result.get("output") and len(result["output"]) < 300:
                 self.console.print(f"    [dim]{result['output']}[/dim]")
         else:
@@ -256,12 +291,28 @@ class TerminalUI:
                 border_style="red"
             ))
 
+    def render_missing_models_warning(self, missing_models: List[str]):
+        """Displays friendly warning box for missing local Ollama models."""
+        table = Table(show_header=True, header_style="bold yellow", box=None, expand=True)
+        table.add_column("Model Dikonfigurasi", style="bold red", width=25)
+        table.add_column("Perintah Instalasi (Jalankan di Terminal)", style="bold green")
+
+        for m in missing_models:
+            table.add_row(m, f"ollama pull {m}")
+
+        self.console.print(Panel(
+            table,
+            title="[bold yellow]⚠️ Perhatian: Beberapa Model Ollama Belum Terdeteksi[/bold yellow]",
+            border_style="yellow",
+            subtitle="[dim]Jalankan perintah 'ollama pull' di atas agar model dapat digunakan[/dim]"
+        ))
+
     def render_memory_status(self, context_info: Dict[str, Any], short_memory_str: str, graph_info_str: str):
         """Displays project memory details and storage location."""
         info_text = (
             f"[bold yellow]Proyek:[/bold yellow] [green]{context_info.get('project_name')}[/green] ({context_info.get('project_hash')})\n"
             f"[bold yellow]Lokasi Simpanan Memori Global:[/bold yellow] [dim]{context_info.get('storage_dir')}[/dim]\n\n"
-            f"[bold cyan]🧠 Short-Term Memory (Riwayat 10 Percakapan Terakhir):[/bold cyan]\n"
+            f"[bold cyan]🧠 Short-Term Memory (Riwayat Percakapan Terakhir):[/bold cyan]\n"
             f"{short_memory_str}\n\n"
             f"[bold magenta]🕸️ Long-Term Memory (Code Knowledge Graph & Embeddings):[/bold magenta]\n"
             f"{graph_info_str}"
@@ -319,11 +370,6 @@ class TerminalUI:
 
         installed_str = ", ".join([f"[green]{m}[/green]" for m in installed_models]) if installed_models else "[red]Tidak ada model terdeteksi[/red]"
         
-        content = (
-            f"[bold white]Model Terpasang di Ollama Lokal ({len(installed_models)}):[/bold white]\n"
-            f"{installed_str}\n\n"
-        )
-        
         self.console.print(Panel(
             table,
             title="[bold magenta]🤖 Status Model LLM & Alokasi Layer[/bold magenta]",
@@ -351,7 +397,8 @@ class TerminalUI:
         """Gets user prompt input using prompt_toolkit with history and slash command completion."""
         try:
             if self.session:
-                return self.session.prompt("\ndinggo > ").strip()
-            return input("\ndinggo > ").strip()
+                from prompt_toolkit.formatted_text import HTML
+                return self.session.prompt(HTML('<cyan><b>🐕 dinggo</b></cyan> <brightblue><b>›</b></brightblue> ')).strip()
+            return input("🐕 dinggo › ").strip()
         except (KeyboardInterrupt, EOFError):
             return "exit"
