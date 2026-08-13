@@ -151,6 +151,56 @@ def main():
                 )
                 continue
 
+            # 3. QUESTION — jawab langsung pertanyaan tentang proyek pakai LLM + konteks
+            #    Skip pipeline Planner→Executor; kirim pertanyaan + context ke model planner
+            _QUESTION_TASK_TYPES = {"question", "inquiry", "ask", "info", "read_file", "greeting"}
+            _is_question = (
+                task_type in _QUESTION_TASK_TYPES
+                or (not is_task and category == "TASK")
+                or any(kw in summary.lower() for kw in ("menanyakan", "bertanya", "tanya", "apa ", "siapa ", "kenapa ", "mengapa "))
+            )
+            if _is_question:
+                # Gather project context for informed answer
+                long_term_ctx = long_term_memory.get_formatted_graph_context(target_scope=target_scope)
+                contextix_ctx = contextix_adapter.get_relevant_context(target_scope=target_scope, summary=summary)
+                ctx_block = f"{contextix_ctx}\n\n{long_term_ctx}".strip()
+
+                q_system = (
+                    "Anda adalah asisten proyek Dinggo. Jawab pertanyaan pengguna berdasarkan konteks proyek yang diberikan.\n"
+                    "Jawab dalam Bahasa Indonesia secara ringkas, informatif, dan akurat.\n"
+                    "Jika konteks proyek tidak mencukupi untuk menjawab, sampaikan dengan jujur bahwa informasi yang tersedia terbatas."
+                )
+                q_prompt = f"[Konteks Proyek]\n{ctx_block}\n\n[Pertanyaan Pengguna]\n{user_input}"
+
+                with ui.live_status("planner", "Menganalisis konteks proyek untuk menjawab pertanyaan...") as timer_q:
+                    q_res = ollama_client.generate(
+                        model=planner.model_name,
+                        prompt=q_prompt,
+                        system_prompt=q_system,
+                        json_format=False,
+                        think=True,
+                        temperature=0.3,
+                        num_ctx=4096,
+                        num_predict=512
+                    )
+                t_q_elapsed = timer_q["elapsed"]
+
+                if q_res.get("success"):
+                    import re as _re
+                    answer = _re.sub(r"<think>[\s\S]*?</think>", "", q_res["response"], flags=_re.IGNORECASE).strip()
+                else:
+                    answer = f"Maaf, saya gagal menganalisis konteks proyek: {q_res.get('error', 'Unknown error')}"
+
+                ui.render_direct_response(answer, elapsed=t_q_elapsed)
+                short_term_memory.add_turn(
+                    prompt=user_input,
+                    category="QUESTION",
+                    summary=summary,
+                    target_scope=target_scope,
+                    direct_response=answer
+                )
+                continue
+
             # Get active long-term code graph context + scope-targeted Contextix rules + active Dinggo agent state
             long_term_ctx = long_term_memory.get_formatted_graph_context(target_scope=target_scope)
             contextix_ctx = contextix_adapter.get_relevant_context(target_scope=target_scope, summary=summary)
