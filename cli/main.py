@@ -253,6 +253,7 @@ def main():
 
             completed_count = 0
             execution_summaries = []
+            step_results = []
 
             for step in steps:
                 step_num = step.get("step_number", 0)
@@ -267,6 +268,7 @@ def main():
                 t_step_elapsed = timer_step["elapsed"]
 
                 ui.render_step_result(step_num, action, res, elapsed=t_step_elapsed)
+                step_results.append(res)
 
                 if res["success"]:
                     completed_count += 1
@@ -280,7 +282,48 @@ def main():
 
             t_exec_total = round(time.time() - t_exec_start, 2)
             exec_full_summary = f"{completed_count}/{len(steps)} langkah sukses. (" + ", ".join(execution_summaries) + ")"
-            
+
+            # Layer 1 Final Task Summary: Synthesize overall executive report for the user
+            if completed_count > 0:
+                step_logs = []
+                for s, r in zip(steps[:completed_count], step_results[:completed_count]):
+                    s_num = s.get("step_number")
+                    act = s.get("action_type")
+                    d = s.get("description", "")
+                    out = r.get("output", "") or r.get("code_content", "") or "Berhasil"
+                    if len(out) > 500:
+                        out = out[:500] + "..."
+                    step_logs.append(f"Langkah #{s_num} [{act} - {d}]:\n{out}")
+
+                sum_system = (
+                    "Anda adalah asisten proyek Dinggo. Tugas Anda adalah menyusun Laporan Ringkasan Hasil Akhir "
+                    "berdasarkan permintaan pengguna dan temuan/hasil eksekusi langkah-langkah yang telah dilakukan.\n"
+                    "Jawab dalam Bahasa Indonesia secara ramah, profesional, rapi, dan informatif menggunakan format Markdown."
+                )
+                sum_prompt = (
+                    f"Permintaan Pengguna: {user_input}\n"
+                    f"Ringkasan Intent: {summary}\n\n"
+                    f"Hasil Eksekusi Langkah-Langkah:\n" + "\n\n".join(step_logs) + "\n\n"
+                    f"Berikan laporan ringkasan hasil akhir secara menyeluruh untuk pengguna!"
+                )
+
+                with ui.live_status("intent", "Menyusun laporan ringkasan akhir...") as timer_sum:
+                    sum_res = ollama_client.generate(
+                        model=intent_parser.model_name,
+                        prompt=sum_prompt,
+                        system_prompt=sum_system,
+                        json_format=False,
+                        think=False,
+                        temperature=0.3,
+                        num_ctx=4096,
+                        num_predict=512
+                    )
+                t_sum_elapsed = timer_sum["elapsed"]
+
+                if sum_res.get("success"):
+                    final_summary_text = sum_res["response"].strip()
+                    ui.render_direct_response(final_summary_text, elapsed=t_sum_elapsed)
+
             # Save completed task to Short-Term Memory
             short_term_memory.add_turn(
                 prompt=user_input,

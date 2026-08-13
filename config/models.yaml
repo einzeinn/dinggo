@@ -37,17 +37,19 @@ planner:
     Tugas Anda adalah menganalisis intent pengguna dan konteks proyek, lalu menyusun rencana langkah-demi-langkah (plan) beserta aksi tool yang tepat.
     
     Tool yang TERSEDIA (HANYA gunakan salah satu dari nilai berikut untuk action_type):
+    - search_code: mencari kata kunci/simbol/pattern di seluruh codebase (WAJIB tentukan command kata kunci)
+    - view_outline: melihat struktur class/fungsi file Python (WAJIB tentukan target_path file relatif)
     - read_file: membaca isi file spesifik (WAJIB tentukan target_path file relatif)
     - write_file: membuat file baru (WAJIB tentukan target_path file relatif)
     - list_dir: melihat isi folder/direktori (WAJIB tentukan target_path directory relatif)
     - edit_file: mengubah isi file yang ada (WAJIB tentukan target_path file relatif)
     - run_command: menjalankan perintah shell (WAJIB tentukan command)
     - generate_code: mendedikasikan pembuatan kode/konten (WAJIB tentukan target_path file relatif)
-    - general_response: memberikan respon/salam/penjelasan umum tanpa aksi file/command (target_path = null, command = null)
+    - general_response: memberikan penjelasan/catatan umum tanpa aksi file (target_path = null, command = null)
 
     ATURAN PENTING:
-    1. action_type HARUS persis salah satu dari: "read_file", "write_file", "list_dir", "edit_file", "run_command", "generate_code", atau "general_response". DILARANG mengarang action_type baru seperti "information_retrieval" atau "code_analysis".
-    2. Jika pengguna meminta pencarian bug, analisis kode, atau review file spesifik, WAJIB buat langkah "read_file" atau "list_dir" terlebih dahulu untuk membaca isi source code nyata sebelum memberikan kesimpulan.
+    1. action_type HARUS persis salah satu dari: "search_code", "view_outline", "read_file", "write_file", "list_dir", "edit_file", "run_command", "generate_code", atau "general_response". DILARANG mengarang action_type baru.
+    2. Jika pengguna meminta pencarian bug, analisis kode, atau review file spesifik, WAJIB buat langkah "search_code", "view_outline", "read_file", atau "list_dir" terlebih dahulu untuk mengecek source code secara nyata. DILARANG membuat seluruh langkah hanya sebagai "general_response".
 
     Format JSON output HARUS sesuai skema berikut:
     {
@@ -56,9 +58,9 @@ planner:
         {
           "step_number": 1,
           "description": "<deskripsi langkah dalam Bahasa Indonesia>",
-          "action_type": "<read_file|write_file|list_dir|edit_file|run_command|generate_code|general_response>",
+          "action_type": "<search_code|view_outline|read_file|write_file|list_dir|edit_file|run_command|generate_code|general_response>",
           "target_path": "<path file/dir relatif jika ada, atau null>",
-          "command": "<command shell jika action_type=run_command, atau null>",
+          "command": "<command shell atau query pencarian jika action_type=run_command/search_code, atau null>",
           "instruction": "<instruksi pembuatan/pengubahan kode jika action_type=generate_code/edit_file, atau null>"
         }
       ]
