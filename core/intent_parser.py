@@ -54,6 +54,77 @@ def extract_json_payload(text: str) -> str:
     return text
 
 
+def normalize_intent_data(data: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    Normalizes LLM intent JSON payload by mapping case-insensitive keys and Indonesian alias translations
+    (e.g., 'Category' -> 'category', 'Maksud' -> 'summary', 'Scope' -> 'target_scope', 'Respon' -> 'direct_response').
+    Ensures Pydantic validation never fails due to model key translation hallucination.
+    """
+    if not isinstance(data, dict):
+        return {}
+
+    normalized = {}
+    lower_data = {str(k).lower(): v for k, v in data.items()}
+
+    alias_map = {
+        "category": ["category", "kategori"],
+        "is_task": ["is_task", "istask", "is_tugas"],
+        "task_type": ["task_type", "tasktype", "tipe_task", "jenis_tugas"],
+        "target_scope": ["target_scope", "targetscope", "scope", "target"],
+        "summary": ["summary", "maksud", "ringkasan", "intent_summary", "description", "intent"],
+        "constraints": ["constraints", "batasa", "batasan"],
+        "direct_response": ["direct_response", "directresponse", "respon", "response", "reply"]
+    }
+
+    for target_key, aliases in alias_map.items():
+        val = None
+        for alias in aliases:
+            if alias in lower_data:
+                val = lower_data[alias]
+                break
+        if val is not None:
+            normalized[target_key] = val
+
+    # Category & is_task normalization
+    if "category" in normalized:
+        cat_str = str(normalized["category"]).upper()
+        if any(w in cat_str for w in ("TASK", "ANALYSIS", "BUG", "CODE", "EDIT", "CREATE", "RUN")):
+            normalized["category"] = "TASK"
+            normalized["is_task"] = True
+        elif any(w in cat_str for w in ("CONVERSATION", "CHAT", "GREETING", "SAPAAN")):
+            normalized["category"] = "CONVERSATION"
+            normalized["is_task"] = False
+        elif any(w in cat_str for w in ("QUESTION", "TANYA", "INFO")):
+            normalized["category"] = "QUESTION"
+            normalized["is_task"] = False
+        elif any(w in cat_str for w in ("CLARIFICATION", "KLARIFIKASI")):
+            normalized["category"] = "CLARIFICATION"
+            normalized["is_task"] = False
+
+    if "target_scope" in normalized:
+        s = normalized["target_scope"]
+        if isinstance(s, str):
+            normalized["target_scope"] = [s] if s.lower() not in ("null", "none", "all", "project", "") else []
+        elif not isinstance(s, list):
+            normalized["target_scope"] = []
+
+    if "summary" not in normalized or not str(normalized["summary"]).strip():
+        for k, v in data.items():
+            if isinstance(v, str) and len(v) > 3:
+                normalized["summary"] = v
+                break
+        if "summary" not in normalized:
+            normalized["summary"] = "Task execution request"
+
+    if "task_type" not in normalized:
+        normalized["task_type"] = "general_task"
+
+    if "is_task" not in normalized:
+        normalized["is_task"] = normalized.get("category") == "TASK"
+
+    return normalized
+
+
 class IntentParser:
     """
     Layer 1: Intent Parser Wrapper (Gemma-SEA-LION 4B).
@@ -118,6 +189,7 @@ class IntentParser:
 
             try:
                 data = json.loads(json_str)
+                data = normalize_intent_data(data)
                 validated = IntentSchema(**data)
                 return {
                     "success": True,

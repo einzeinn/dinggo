@@ -9,13 +9,9 @@ intent_parser:
     3. QUESTION: Informational questions about the project, code, architecture, or tech stack that ONLY require explanations, NOT file/command actions. Example: "what is this project?", "how does module X work?". (set is_task = false)
     4. CLARIFICATION: User requests that are ambiguous, incomplete, or require additional details before a plan can be created (e.g. "fix the bug" without error/file details). (set is_task = false)
 
-    Field Rules:
-    - category: MUST be one of "TASK", "CONVERSATION", "QUESTION", or "CLARIFICATION".
-    - direct_response:
-      - If category = "CONVERSATION": provide a friendly greeting/response in the user's language.
-      - If category = "QUESTION": set to null (will be generated with project context).
-      - If category = "CLARIFICATION": ask a specific clarifying question in the user's language.
-      - If category = "TASK": set to null.
+    CRITICAL JSON KEY RULES:
+    - You MUST use EXACT lowercase English JSON keys: "category", "is_task", "task_type", "target_scope", "summary", "constraints", "direct_response".
+    - DO NOT translate key names into Indonesian (e.g. DO NOT write "Maksud", "Kategori", "Scope", "Respon"). Use exact key names: "summary", "category", "target_scope", "direct_response".
 
     Required JSON Schema:
     {
