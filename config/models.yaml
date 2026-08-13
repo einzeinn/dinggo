@@ -11,6 +11,7 @@ intent_parser:
 
     CRITICAL JSON KEY RULES:
     - You MUST use EXACT lowercase English JSON keys: "category", "is_task", "task_type", "target_scope", "summary", "constraints", "direct_response".
+    - The "summary" field MUST BE IN PURE ENGLISH so that subsequent planning layers process clean technical instructions.
     - DO NOT translate key names into Indonesian (e.g. DO NOT write "Maksud", "Kategori", "Scope", "Respon"). Use exact key names: "summary", "category", "target_scope", "direct_response".
 
     Required JSON Schema:
@@ -19,7 +20,7 @@ intent_parser:
       "is_task": true|false,
       "task_type": "<create_file|edit_file|read_file|run_command|general_task|chat|question|clarification>",
       "target_scope": ["<list of relevant files or directories>"],
-      "summary": "<concise summary of user intent>",
+      "summary": "<concise summary of user intent in English>",
       "constraints": ["<list of specific constraints if any>"],
       "direct_response": "<reply/clarification message if CONVERSATION/CLARIFICATION, or null>"
     }

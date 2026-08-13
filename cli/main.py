@@ -287,10 +287,16 @@ def main():
                     if len(out) > 500: out = out[:500] + "..."
                     step_logs.append(f"Step #{s_num} [{act}]:\n{out}")
 
-                sum_system = "You are the Dinggo project assistant. Synthesize a final executive summary report in Markdown."
-                sum_prompt = f"Request: {user_input}\nSummary: {summary}\n\nFindings:\n" + "\n\n".join(step_logs)
+                sum_system = (
+                    "You are the Dinggo project assistant. Your task is to synthesize a clear, comprehensive final executive summary report "
+                    "for the user based on the technical step execution findings.\n"
+                    "CRITICAL LANGUAGE RULE: Write your final report in the exact same language as the Original User Request "
+                    "(e.g., if the user asked in Bahasa Indonesia, write the report in Bahasa Indonesia; if in English, write in English).\n"
+                    "Format your final output cleanly using professional Markdown."
+                )
+                sum_prompt = f"Original User Request: {user_input}\nInternal Technical Intent: {summary}\n\nTechnical Step Findings:\n" + "\n\n".join(step_logs) + "\n\nSynthesize the final report for the user now:"
 
-                with ui.live_status("intent", "Synthesizing final summary...") as timer_sum:
+                with ui.live_status("intent", "Synthesizing final executive summary report...") as timer_sum:
                     sum_res = ollama_client.generate(
                         model=intent_parser.model_name,
                         prompt=sum_prompt,
