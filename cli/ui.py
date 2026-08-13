@@ -132,11 +132,12 @@ class TerminalUI:
         summary = intent_data.get("summary", "")
         category = intent_data.get("category", "TASK").upper()
         task_type = intent_data.get("task_type", "")
-        scope = ", ".join(intent_data.get("target_scope", [])) or "Semua project"
+        scope = ", ".join(intent_data.get("target_scope", [])) or "Whole Workspace"
 
         cat_styles = {
             "TASK": "[bold black on yellow] ⚡ TASK [/bold black on yellow]",
             "CONVERSATION": "[bold white on cyan] 💬 CONVERSATION [/bold white on cyan]",
+            "QUESTION": "[bold white on green] ❓ QUESTION [/bold white on green]",
             "CLARIFICATION": "[bold white on magenta] ❓ CLARIFICATION [/bold white on magenta]"
         }
         cat_badge = cat_styles.get(category, f"[bold white]{category}[/bold white]")
@@ -145,9 +146,9 @@ class TerminalUI:
         table.add_column("Key", style="bold cyan", width=14)
         table.add_column("Value")
 
-        table.add_row("Kategori", cat_badge)
-        table.add_row("Tipe Task", f"[bold yellow]{task_type}[/bold yellow]")
-        table.add_row("Maksud/Intent", f"[white]{summary}[/white]")
+        table.add_row("Category", cat_badge)
+        table.add_row("Task Type", f"[bold yellow]{task_type}[/bold yellow]")
+        table.add_row("Intent Summary", f"[white]{summary}[/white]")
         table.add_row("Target Scope", f"[green]{scope}[/green]")
 
         timer_str = f" [dim cyan](⏱️ {elapsed:.2f}s)[/dim cyan]" if elapsed is not None else ""
@@ -184,13 +185,13 @@ class TerminalUI:
 
     def render_plan(self, plan_data: Dict[str, Any], elapsed: Optional[float] = None):
         """Displays numbered plan steps in a styled panel with optional timer."""
-        summary = plan_data.get("intent_summary", "Rencana Eksekusi")
+        summary = plan_data.get("intent_summary", "Execution Plan")
         steps = plan_data.get("steps", [])
 
         table = Table(show_header=True, header_style="bold magenta", box=None, expand=True)
         table.add_column("Step", style="dim cyan", width=6, justify="center")
-        table.add_column("Aksi / Tool", style="bold yellow", width=15)
-        table.add_column("Detail Langkah Pengerjaan", style="white")
+        table.add_column("Action / Tool", style="bold yellow", width=15)
+        table.add_column("Step Details", style="white")
         table.add_column("Target Path / Command", style="bold green")
 
         for step in steps:
@@ -215,16 +216,16 @@ class TerminalUI:
         Prompts user to confirm, cancel, or revise the plan.
         Returns ('Y'|'N'|'R', revision_text)
         """
-        self.console.print("\n[bold yellow]⚡ KONFIRMASI EKSKUSI PLAN:[/bold yellow]  [bold green][Y] ✅ Lanjut[/bold green]  │  [bold red][N] ❌ Batal[/bold red]  │  [bold magenta][R] 📝 Revisi Plan[/bold magenta]")
+        self.console.print("\n[bold yellow]⚡ PLAN EXECUTION CONFIRMATION:[/bold yellow]  [bold green][Y] ✅ Proceed[/bold green]  │  [bold red][N] ❌ Cancel[/bold red]  │  [bold magenta][R] 📝 Revise Plan[/bold magenta]")
         while True:
             try:
-                choice = Prompt.ask("[bold cyan]Pilihan Anda[/bold cyan]", choices=["y", "n", "r", "Y", "N", "R"], default="y").lower()
+                choice = Prompt.ask("[bold cyan]Your Choice[/bold cyan]", choices=["y", "n", "r", "Y", "N", "R"], default="y").lower()
                 if choice == "y":
                     return "Y", ""
                 elif choice == "n":
                     return "N", ""
                 elif choice == "r":
-                    revision = Prompt.ask("[bold yellow]Masukkan masukan/revisi Anda[/bold yellow]")
+                    revision = Prompt.ask("[bold yellow]Enter your feedback/revision[/bold yellow]")
                     return "R", revision
             except (KeyboardInterrupt, EOFError):
                 return "N", ""
@@ -233,14 +234,14 @@ class TerminalUI:
         """
         Mandatory safety confirmation dialog before running shell commands.
         """
-        self.console.print("\n[bold red]⚠️ PERINGATAN KEAMANAN EKSEKUSI SHELL COMMAND[/bold red]")
+        self.console.print("\n[bold red]⚠️ SHELL COMMAND EXECUTION SAFETY WARNING[/bold red]")
         self.console.print(Panel(
             Text.from_markup(f"[bold white]{command}[/bold white]"),
-            title="[bold yellow]Command yang akan dijalankan[/bold yellow]",
+            title="[bold yellow]Command to be executed[/bold yellow]",
             border_style="red"
         ))
         try:
-            choice = Prompt.ask("[bold red]Apakah Anda mengizinkan eksekusi command ini?[/bold red]", choices=["y", "n"], default="n").lower()
+            choice = Prompt.ask("[bold red]Do you allow executing this command?[/bold red]", choices=["y", "n"], default="n").lower()
             return choice == "y"
         except (KeyboardInterrupt, EOFError):
             return False
@@ -248,7 +249,7 @@ class TerminalUI:
     def render_diff(self, file_path: str, diff_text: str):
         """Renders colorized unified diff for modified files."""
         if not diff_text.strip():
-            self.console.print(f"[dim]Tidak ada perubahan karakter di {file_path}[/dim]")
+            self.console.print(f"[dim]No character changes in {file_path}[/dim]")
             return
 
         syntax = Syntax(diff_text, "diff", theme="monokai", line_numbers=False)
@@ -266,14 +267,14 @@ class TerminalUI:
         preview_lines = lines[:max_lines]
         preview_text = "\n".join(preview_lines)
         if len(lines) > max_lines:
-            preview_text += f"\n... ({len(lines) - max_lines} baris lainnya)"
+            preview_text += f"\n... ({len(lines) - max_lines} more lines)"
 
         ext = os.path.splitext(file_path)[1].lower().strip(".")
         lexer_name = ext if ext in ("py", "json", "yaml", "yml", "md", "html", "css", "sh", "txt") else "text"
         syntax = Syntax(preview_text, lexer_name, theme="monokai", line_numbers=True)
         self.console.print(Panel(
             syntax,
-            title=f"[bold cyan]Pratinjau Kode: {file_path}[/bold cyan]",
+            title=f"[bold cyan]Code Preview: {file_path}[/bold cyan]",
             border_style="cyan"
         ))
 
@@ -281,14 +282,14 @@ class TerminalUI:
         """Displays step completion checklist icon, output/error, and execution timer."""
         timer_str = f" [dim green](⏱️ {elapsed:.2f}s)[/dim green]" if elapsed is not None else ""
         if result["success"]:
-            self.console.print(f"[bold green]  ✓ Step {step_num} [{action}]: Selesai[/bold green]{timer_str}")
+            self.console.print(f"[bold green]  ✓ Step {step_num} [{action}]: Completed[/bold green]{timer_str}")
             target_path = result.get("target_path", "file")
             if result.get("diff"):
                 self.render_diff(target_path, result["diff"])
             elif result.get("code_content"):
                 self.render_code_preview(target_path, result["code_content"])
             elif action in ("search_code", "view_outline", "list_dir") and result.get("output"):
-                title_label = "Hasil Search Code" if action == "search_code" else ("AST Outline File" if action == "view_outline" else "Isi Direktori")
+                title_label = "Code Search Results" if action == "search_code" else ("File AST Outline" if action == "view_outline" else "Directory Contents")
                 syntax = Syntax(result["output"], "python" if action == "view_outline" else "text", theme="monokai", line_numbers=False)
                 self.console.print(Panel(
                     syntax,
@@ -299,8 +300,8 @@ class TerminalUI:
                 self.console.print(f"    [dim]{result['output']}[/dim]")
         else:
             rolled_back_msg = " [bold yellow](Rolled Back)[/bold yellow]" if result.get("rolled_back") else ""
-            self.console.print(f"[bold red]  ✗ Step {step_num} [{action}]: Gagal[/bold red]{rolled_back_msg}{timer_str}")
-            err_msg = result.get("error") or result.get("output") or "Error tidak diketahui"
+            self.console.print(f"[bold red]  ✗ Step {step_num} [{action}]: Failed[/bold red]{rolled_back_msg}{timer_str}")
+            err_msg = result.get("error") or result.get("output") or "Unknown error"
             self.console.print(Panel(
                 Text(err_msg, style="bold red"),
                 title=f"[bold red]Error Step {step_num}[/bold red]",

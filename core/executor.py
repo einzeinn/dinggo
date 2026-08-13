@@ -210,12 +210,12 @@ class Executor:
                     result["success"] = False
                     result["rolled_back"] = True
                     result["reason"] = "validation_failed_after_2_repairs"
-                    result["error"] = f"Validasi sintaksis gagal setelah 2x perbaikan ({syn_val['message']}). File dikembalikan ke kondisi awal (rolled back)."
+                    result["error"] = f"Syntax validation failed after 2 repair attempts ({syn_val['message']}). File restored to original state (rolled back)."
                     return result
 
             result["success"] = True
             result["code_content"] = code_content
-            result["output"] = f"File {target_path} berhasil dibuat/diubah & lulus validasi sintaksis."
+            result["output"] = f"File {target_path} successfully written/modified & passed syntax validation."
             if original_content is not None:
                 result["diff"] = get_unified_diff(target_full_path, original_content, code_content)
 
@@ -236,24 +236,24 @@ class Executor:
         # 6. run_command
         elif action_type == "run_command":
             if not command:
-                result["error"] = "Command string tidak ditentukan untuk run_command"
+                result["error"] = "Command string not specified for run_command"
                 return result
 
             if self.confirm_command_callback:
                 approved = self.confirm_command_callback(command)
                 if not approved:
                     result["success"] = False
-                    result["error"] = f"Eksekusi command DIBATALKAN oleh pengguna: {command}"
+                    result["error"] = f"Command execution CANCELLED by user: {command}"
                     return result
 
             res = run_command(command, cwd=project_root)
             result["success"] = res["success"]
             result["output"] = f"STDOUT:\n{res['stdout']}\nSTDERR:\n{res['stderr']}"
             if not res["success"]:
-                result["error"] = f"Command keluar dengan return code {res['returncode']}"
+                result["error"] = f"Command exited with return code {res['returncode']}"
 
         else:
-            result["error"] = f"Action type tidak dikenal: {action_type}"
+            result["error"] = f"Unknown action type: {action_type}"
 
         return result
 

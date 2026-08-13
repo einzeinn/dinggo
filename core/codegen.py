@@ -54,8 +54,8 @@ class CodegenDelegate:
             except Exception:
                 pass
         return (
-            "Anda adalah pakar pemrogram dan penulis konten teknis. "
-            "Hasilkan HANYA isi file yang lengkap dan murni tanpa penjelasan teks di luar file."
+            "You are an expert programmer and technical content writer. "
+            "Produce ONLY the pure, complete file contents without any markdown explanation text outside the file."
         )
 
     def generate_code(
@@ -71,22 +71,22 @@ class CodegenDelegate:
         is_python = ext == ".py" or not ext
 
         if is_python:
-            prompt = f"Instruksi Pembuatan Kode Python: {instruction}\n"
+            prompt = f"Python Code Generation Instruction: {instruction}\n"
             if target_path:
                 prompt += f"Target File: {target_path}\n"
             if existing_code:
-                prompt += f"\nKode Existing Saat Ini:\n```python\n{existing_code}\n```\n"
-            prompt += "\nBerikan kode Python yang lengkap untuk mengimplementasikan instruksi di atas."
+                prompt += f"\nCurrent Existing Code:\n```python\n{existing_code}\n```\n"
+            prompt += "\nProvide clean, complete Python code to implement the instruction above."
         else:
-            prompt = f"Instruksi Pembuatan Dokumentasi/File ({ext}): {instruction}\n"
+            prompt = f"Document/File Generation Instruction ({ext}): {instruction}\n"
             if target_path:
                 prompt += f"Target File Path: {target_path}\n"
             if existing_code:
-                prompt += f"\nKonten Existing Saat Ini:\n```{ext.strip('.')}\n{existing_code}\n```\n"
+                prompt += f"\nCurrent Existing Content:\n```{ext.strip('.')}\n{existing_code}\n```\n"
             prompt += (
-                f"\nPERHATIAN: Target file '{target_path}' adalah file {ext}.\n"
-                f"Hasilkan HANYA konten {ext} yang murni secara langsung!\n"
-                f"JANGAN membuat program Python `def generate_...` atau `file.write()`, dan JANGAN menulis teks penjelasan di luar dokumen."
+                f"\nATTENTION: Target file '{target_path}' is a {ext} file.\n"
+                f"Output ONLY pure {ext} content directly!\n"
+                f"DO NOT generate a Python script `def generate_...` or `file.write()`, and DO NOT write explanation text outside the document."
             )
 
         res = self.client.generate(
@@ -100,7 +100,7 @@ class CodegenDelegate:
         if not res["success"]:
             return {
                 "success": False,
-                "error": res.get("error", "Gagal melakukan codegen"),
+                "error": res.get("error", "Codegen generation failed"),
                 "code": ""
             }
 
@@ -123,13 +123,13 @@ class CodegenDelegate:
         """
         ext = os.path.splitext(target_path)[1].lower()
         prompt = (
-            f"FILE TARGET: {target_path}\n"
-            f"ERROR SYNTAX/VALIDASI: {validation_error}\n"
-            f"TUGAS AWAL: {original_task}\n\n"
-            f"KODE TERKAIT SAAT INI:\n```{ext.strip('.')}\n{relevant_code[:2000]}\n```\n\n"
-            f"Perbaiki error sintaksis di atas. Anda dapat memberikan perbaikan berupa SEARCH/REPLACE block:\n"
-            f"<<<<<<< SEARCH\n[kode salah saat ini]\n=======\n[kode perbaikan]\n>>>>>>> REPLACE\n"
-            f"atau seluruh kode perbaikan yang valid."
+            f"TARGET FILE: {target_path}\n"
+            f"VALIDATION/SYNTAX ERROR: {validation_error}\n"
+            f"ORIGINAL TASK: {original_task}\n\n"
+            f"CURRENT RELEVANT CODE:\n```{ext.strip('.')}\n{relevant_code[:2000]}\n```\n\n"
+            f"Fix the syntax error above. You may provide the fix as a SEARCH/REPLACE block:\n"
+            f"<<<<<<< SEARCH\n[current erroneous code]\n=======\n[corrected code]\n>>>>>>> REPLACE\n"
+            f"or as complete valid replacement code."
         )
 
         res = self.client.generate(
@@ -143,7 +143,7 @@ class CodegenDelegate:
         if not res["success"]:
             return {
                 "success": False,
-                "error": res.get("error", "Gagal melakukan repair code"),
+                "error": res.get("error", "Code repair generation failed"),
                 "code": ""
             }
 

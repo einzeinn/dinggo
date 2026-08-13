@@ -96,22 +96,22 @@ def main():
                 "apa kabar", "how are you", "what's up", "whats up",
             }
             if _lowered in _GREETING_PATTERNS or len(_lowered) <= 3 and not _lowered.startswith("/"):
-                response_msg = "Halo! 🐕 Ada yang bisa saya bantu dengan proyek Anda hari ini?"
+                response_msg = "Hello! 🐕 How can I help you with your project today?"
                 ui.render_direct_response(response_msg, elapsed=0.0)
                 short_term_memory.add_turn(
                     prompt=user_input, category="CONVERSATION",
-                    summary="Sapaan dari pengguna", target_scope=[],
+                    summary="User greeting", target_scope=[],
                     direct_response=response_msg
                 )
                 continue
 
             # Layer 1: Intent Parsing with live updating status timer & memory
-            with ui.live_status("intent", "Mencerna maksud dan target instruksi...") as timer_intent:
+            with ui.live_status("intent", "Parsing intent and target instruction...") as timer_intent:
                 intent_res = intent_parser.parse(user_input, short_term_context=short_term_ctx)
             t_intent_elapsed = timer_intent["elapsed"]
 
             if not intent_res["success"]:
-                ui.console.print(f"[bold red]❌ Intent Parsing Gagal (⏱️ {t_intent_elapsed:.2f}s):[/bold red] {intent_res['error']}")
+                ui.console.print(f"[bold red]❌ Intent Parsing Failed (⏱️ {t_intent_elapsed:.2f}s):[/bold red] {intent_res['error']}")
                 continue
 
             intent_data = intent_res["intent"]
@@ -125,9 +125,9 @@ def main():
             summary = intent_data.get("summary", "")
             target_scope = intent_data.get("target_scope", [])
 
-            # 1. CONVERSATION — cek category atau is_task=False (tidak bergantung pada task_type spesifik)
+            # 1. CONVERSATION
             if category == "CONVERSATION" or (not is_task and category not in ("CLARIFICATION", "TASK")):
-                response_msg = direct_resp or summary or "Halo! Ada yang bisa saya bantu dengan proyek Anda hari ini?"
+                response_msg = direct_resp or summary or "Hello! How can I assist you with your project today?"
                 ui.render_direct_response(response_msg, elapsed=t_intent_elapsed)
                 short_term_memory.add_turn(
                     prompt=user_input,
@@ -140,7 +140,7 @@ def main():
 
             # 2. CLARIFICATION
             if category == "CLARIFICATION" or task_type == "clarification":
-                clarification_msg = direct_resp or summary or "Bisakah Anda memberikan penjelasan lebih detail tentang tugas yang ingin dikerjakan?"
+                clarification_msg = direct_resp or summary or "Could you please provide more specific details about the task you want to perform?"
                 ui.render_clarification(clarification_msg, elapsed=t_intent_elapsed)
                 short_term_memory.add_turn(
                     prompt=user_input,
@@ -151,28 +151,24 @@ def main():
                 )
                 continue
 
-            # 3. QUESTION — jawab langsung pertanyaan umum/informatif seputar proyek tanpa aksi file/command
-            #    HANYA berlaku jika is_task=False dan category=QUESTION/CONVERSATION.
-            #    Jika is_task=True (seperti "cari bug", "analisis file X"), WAJIB masuk pipeline Planner->Executor agar file dibaca secara nyata.
+            # 3. QUESTION
             _is_question = (
                 not is_task
                 and category in ("QUESTION", "CONVERSATION")
             )
             if _is_question:
-                # Gather project context for informed answer
                 long_term_ctx = long_term_memory.get_formatted_graph_context(target_scope=target_scope)
                 contextix_ctx = contextix_adapter.get_relevant_context(target_scope=target_scope, summary=summary)
                 ctx_block = f"{contextix_ctx}\n\n{long_term_ctx}".strip()
 
                 q_system = (
-                    "Anda adalah asisten proyek Dinggo. Jawab pertanyaan pengguna berdasarkan konteks proyek yang diberikan.\n"
-                    "Jawab dalam Bahasa Indonesia secara ramah, ringkas, informatif, dan langsung ke poin utama.\n"
-                    "DILARANG menuliskan 'Thinking Process', analisis internal, '1. Analyze the Request', atau poin-poin penalaran.\n"
-                    "Langsung berikan jawaban akhir untuk pengguna."
+                    "You are the Dinggo project assistant. Answer the user's question based on the provided project context.\n"
+                    "Respond in the same language as the user's prompt. Be friendly, concise, informative, and direct.\n"
+                    "DO NOT write internal reasoning or 'Thinking Process'."
                 )
-                q_prompt = f"[Konteks Proyek]\n{ctx_block}\n\n[Pertanyaan Pengguna]\n{user_input}"
+                q_prompt = f"[Project Context]\n{ctx_block}\n\n[User Question]\n{user_input}"
 
-                with ui.live_status("planner", "Menganalisis konteks proyek untuk menjawab pertanyaan...") as timer_q:
+                with ui.live_status("planner", "Analyzing project context...") as timer_q:
                     q_res = ollama_client.generate(
                         model=planner.model_name,
                         prompt=q_prompt,
@@ -189,11 +185,10 @@ def main():
                     import re as _re
                     raw_ans = q_res["response"]
                     ans = _re.sub(r"<think>[\s\S]*?</think>", "", raw_ans, flags=_re.IGNORECASE).strip()
-                    # Strip any lingering Thinking Process block if model writes it in text
                     ans = _re.sub(r"(?:Thinking Process|Proses Berpikir|Reasoning):[\s\S]*?(?=\n\n[A-Z0-9#\*]|\Z)", "", ans, flags=_re.IGNORECASE).strip()
                     answer = ans or raw_ans.strip()
                 else:
-                    answer = f"Maaf, saya gagal menganalisis konteks proyek: {q_res.get('error', 'Unknown error')}"
+                    answer = f"Sorry, failed to analyze project context: {q_res.get('error', 'Unknown error')}"
 
                 ui.render_direct_response(answer, elapsed=t_q_elapsed)
                 short_term_memory.add_turn(
@@ -205,19 +200,18 @@ def main():
                 )
                 continue
 
-            # Get active long-term code graph context + scope-targeted Contextix rules + active Dinggo agent state
+            # Layer 2: Planning Loop
             long_term_ctx = long_term_memory.get_formatted_graph_context(target_scope=target_scope)
             contextix_ctx = contextix_adapter.get_relevant_context(target_scope=target_scope, summary=summary)
             agent_state_ctx = contextix_adapter.get_agent_state_context(current_task=summary, current_phase="Planning")
             combined_long_term_ctx = f"{agent_state_ctx}\n\n{contextix_ctx}\n\n{long_term_ctx}".strip()
 
-            # Layer 2: Planning Loop with live updating status timer & memory
             revision_feedback: Optional[str] = None
             plan_approved = False
             final_plan = None
 
             while not plan_approved:
-                status_msg = "Menyusun alur kerja dan penentuan tools..." if not revision_feedback else "Memperbaiki plan sesuai revisi pengguna..."
+                status_msg = "Constructing execution plan..." if not revision_feedback else "Revising plan based on feedback..."
 
                 with ui.live_status("planner", status_msg) as timer_plan:
                     plan_res = planner.create_plan(
@@ -229,7 +223,7 @@ def main():
                 t_plan_elapsed = timer_plan["elapsed"]
 
                 if not plan_res["success"]:
-                    ui.console.print(f"[bold red]❌ Planning Gagal (⏱️ {t_plan_elapsed:.2f}s):[/bold red] {plan_res['error']}")
+                    ui.console.print(f"[bold red]❌ Planning Failed (⏱️ {t_plan_elapsed:.2f}s):[/bold red] {plan_res['error']}")
                     break
 
                 final_plan = plan_res["plan"]
@@ -239,7 +233,7 @@ def main():
                 if choice == "Y":
                     plan_approved = True
                 elif choice == "N":
-                    ui.console.print("[bold yellow]Plan dibatalkan oleh pengguna.[/bold yellow]")
+                    ui.console.print("[bold yellow]Plan cancelled by user.[/bold yellow]")
                     break
                 elif choice == "R":
                     revision_feedback = rev_text
@@ -247,7 +241,7 @@ def main():
             if not plan_approved or not final_plan:
                 continue
 
-            # Layer 3: Executor with live updating step timers
+            # Layer 3: Executor
             t_exec_start = time.time()
             steps = final_plan.get("steps", [])
 
@@ -261,7 +255,7 @@ def main():
                 desc = step.get("description", "")
 
                 layer_name = "codegen" if action in ("write_file", "edit_file", "generate_code") else "executor"
-                step_msg = f"Menulis kode Python untuk step {step_num}: {desc}" if layer_name == "codegen" else f"Menjalankan tool {action} ({desc})"
+                step_msg = f"Executing step {step_num}: {desc}"
 
                 with ui.live_status(layer_name, step_msg) as timer_step:
                     res = executor.execute_step(step, project_root=working_dir)
@@ -272,42 +266,31 @@ def main():
 
                 if res["success"]:
                     completed_count += 1
-                    execution_summaries.append(f"Step {step_num} [{action}]: Berhasil")
+                    execution_summaries.append(f"Step {step_num} [{action}]: Success")
                     if action in ("write_file", "edit_file", "generate_code"):
                         contextix_adapter.mark_dirty()
                 else:
-                    execution_summaries.append(f"Step {step_num} [{action}]: Gagal ({res.get('error')})")
-                    ui.console.print(f"[bold red]Proses terhenti di step {step_num} karena terjadi kesalahan.[/bold red]")
+                    execution_summaries.append(f"Step {step_num} [{action}]: Failed ({res.get('error')})")
+                    ui.console.print(f"[bold red]Execution stopped at step {step_num}.[/bold red]")
                     break
 
             t_exec_total = round(time.time() - t_exec_start, 2)
-            exec_full_summary = f"{completed_count}/{len(steps)} langkah sukses. (" + ", ".join(execution_summaries) + ")"
+            exec_full_summary = f"{completed_count}/{len(steps)} steps succeeded."
 
-            # Layer 1 Final Task Summary: Synthesize overall executive report for the user
+            # Layer 1 Final Task Summary
             if completed_count > 0:
                 step_logs = []
                 for s, r in zip(steps[:completed_count], step_results[:completed_count]):
                     s_num = s.get("step_number")
                     act = s.get("action_type")
-                    d = s.get("description", "")
-                    out = r.get("output", "") or r.get("code_content", "") or "Berhasil"
-                    if len(out) > 500:
-                        out = out[:500] + "..."
-                    step_logs.append(f"Langkah #{s_num} [{act} - {d}]:\n{out}")
+                    out = r.get("output", "") or r.get("code_content", "") or "Success"
+                    if len(out) > 500: out = out[:500] + "..."
+                    step_logs.append(f"Step #{s_num} [{act}]:\n{out}")
 
-                sum_system = (
-                    "Anda adalah asisten proyek Dinggo. Tugas Anda adalah menyusun Laporan Ringkasan Hasil Akhir "
-                    "berdasarkan permintaan pengguna dan temuan/hasil eksekusi langkah-langkah yang telah dilakukan.\n"
-                    "Jawab dalam Bahasa Indonesia secara ramah, profesional, rapi, dan informatif menggunakan format Markdown."
-                )
-                sum_prompt = (
-                    f"Permintaan Pengguna: {user_input}\n"
-                    f"Ringkasan Intent: {summary}\n\n"
-                    f"Hasil Eksekusi Langkah-Langkah:\n" + "\n\n".join(step_logs) + "\n\n"
-                    f"Berikan laporan ringkasan hasil akhir secara menyeluruh untuk pengguna!"
-                )
+                sum_system = "You are the Dinggo project assistant. Synthesize a final executive summary report in Markdown."
+                sum_prompt = f"Request: {user_input}\nSummary: {summary}\n\nFindings:\n" + "\n\n".join(step_logs)
 
-                with ui.live_status("intent", "Menyusun laporan ringkasan akhir...") as timer_sum:
+                with ui.live_status("intent", "Synthesizing final summary...") as timer_sum:
                     sum_res = ollama_client.generate(
                         model=intent_parser.model_name,
                         prompt=sum_prompt,
@@ -321,29 +304,21 @@ def main():
                 t_sum_elapsed = timer_sum["elapsed"]
 
                 if sum_res.get("success"):
-                    final_summary_text = sum_res["response"].strip()
-                    ui.render_direct_response(final_summary_text, elapsed=t_sum_elapsed)
+                    ui.render_direct_response(sum_res["response"].strip(), elapsed=t_sum_elapsed)
 
-            # Save completed task to Short-Term Memory
             short_term_memory.add_turn(
-                prompt=user_input,
-                category="TASK",
-                summary=summary,
-                target_scope=target_scope,
-                execution_summary=exec_full_summary
+                prompt=user_input, category="TASK", summary=summary,
+                target_scope=target_scope, execution_summary=exec_full_summary
             )
 
-            # Refresh Code Knowledge Graph after file modifications
             long_term_memory.build_code_graph()
-
-            # Non-blocking post-execution batch refresh for Contextix project memory
             if completed_count > 0:
                 contextix_adapter.refresh_post_execution(execution_summaries)
 
-            ui.console.print(f"\n[bold green]✨ Selesai: {completed_count}/{len(steps)} langkah telah dieksekusi.[/bold green] [dim cyan](⏱️ Total Eksekusi: {t_exec_total:.2f}s)[/dim cyan]")
+            ui.console.print(f"\n[bold green]✨ Completed: {completed_count}/{len(steps)} steps.[/bold green] [dim](⏱️ {t_exec_total:.2f}s)[/dim]")
 
         except KeyboardInterrupt:
-            ui.console.print("\n[bold yellow]⚠️ Operasi dibatalkan oleh pengguna.[/bold yellow]")
+            ui.console.print("\n[bold yellow]⚠️ Operation cancelled by user.[/bold yellow]")
             continue
 
 

@@ -10,22 +10,22 @@ from core.intent_parser import extract_json_payload
 
 
 class PlanStep(BaseModel):
-    step_number: int = Field(description="Nomor urut langkah")
-    description: str = Field(description="Penjelasan detail tentang apa yang dilakukan di langkah ini")
+    step_number: int = Field(description="Sequential step number")
+    description: str = Field(description="Detailed step description")
     action_type: str = Field(
-        description="Jenis aksi: read_file, write_file, list_dir, edit_file, run_command, generate_code, atau general_response"
+        description="Action type: search_code, view_outline, read_file, write_file, list_dir, edit_file, run_command, generate_code, or general_response"
     )
-    target_path: Optional[str] = Field(default=None, description="Path file/dir target jika ada")
-    command: Optional[str] = Field(default=None, description="Command shell jika action_type=run_command")
+    target_path: Optional[str] = Field(default=None, description="Target file/directory path if applicable")
+    command: Optional[str] = Field(default=None, description="Shell command or search query if action_type=run_command/search_code")
     instruction: Optional[str] = Field(
         default=None,
-        description="Instruksi spesifik pengubahan/pembuatan kode jika action_type=generate_code atau edit_file"
+        description="Specific code generation or modification instruction if action_type=generate_code or edit_file"
     )
 
 
 class PlanSchema(BaseModel):
-    intent_summary: str = Field(description="Ringkasan intent yang diproses")
-    steps: List[PlanStep] = Field(default_factory=list, description="Daftar langkah kerja terurut")
+    intent_summary: str = Field(description="Summary of the intent being processed")
+    steps: List[PlanStep] = Field(default_factory=list, description="Ordered list of execution steps")
 
 
 def sanitize_thinking_output(text: str) -> str:
