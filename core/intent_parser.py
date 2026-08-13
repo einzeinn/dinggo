@@ -161,7 +161,7 @@ class IntentParser:
         for attempt in range(1, self.max_retries + 1):
             if attempt > 1:
                 prompt_to_send = (
-                    f"Initial request: {user_prompt}\n\n"
+                    f"{current_prompt}\n\n"
                     f"Previous attempt (#{attempt-1}) produced invalid JSON:\n"
                     f"{last_error}\n\n"
                     f"Fix the format and respond ONLY with valid JSON adhering to the schema!"
