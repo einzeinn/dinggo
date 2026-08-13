@@ -46,7 +46,7 @@ class TerminalUI:
                 pass
         self.console = Console()
         history_path = os.path.expanduser("~/.dinggo_history")
-        slash_commands = ["/help", "/config", "/models", "/memory", "/status", "/clear", "/compact", "/exit"]
+        slash_commands = ["/help", "/config", "/models", "/memory", "/contextix", "/status", "/clear", "/compact", "/exit"]
         completer = SlashCompleter(slash_commands)
         try:
             self.session = PromptSession(history=FileHistory(history_path), completer=completer)
@@ -323,6 +323,26 @@ class TerminalUI:
             border_style="green"
         ))
 
+    def render_contextix_status(self, ctx_status: Dict[str, Any]):
+        """Displays Contextix project memory integration dashboard."""
+        avail_str = "[bold green]ONLINE ✅[/bold green]" if ctx_status.get("available") else "[bold red]NOT INSTALLED ❌[/bold red]"
+        ctx_str = "[bold green]TERBENTUK ✅[/bold green]" if ctx_status.get("has_context") else "[bold yellow]BELUM ADA ⚠️[/bold yellow]"
+
+        info_text = (
+            f"[bold yellow]Contextix CLI Status:[/bold yellow] {avail_str}\n"
+            f"[bold yellow]Status Memori .context/:[/bold yellow] {ctx_str} ([dim]{ctx_status.get('context_dir')}[/dim])\n"
+            f"[bold yellow]Nama Proyek (Contextix):[/bold yellow] [green]{ctx_status.get('project_name')}[/green]\n"
+            f"[bold yellow]Keputusan Terdaftar (Decisions):[/bold yellow] [cyan]{ctx_status.get('decisions_count')} keputusan[/cyan]\n"
+            f"[bold yellow]Batasan Proyek (Constraints):[/bold yellow] [magenta]{ctx_status.get('constraints_count')} hard rules[/magenta]\n"
+            f"[bold yellow]File Bootstrap / YAML:[/bold yellow] [white]bootstrap.md ({'✅' if ctx_status.get('bootstrap_exists') else '❌'}) | context.yaml ({'✅' if ctx_status.get('yaml_exists') else '❌'})[/white]\n\n"
+            f"[dim cyan]💡 Tip: Ketik '/contextix generate' untuk memperbarui memori snapshot proyek.[/dim cyan]"
+        )
+        self.console.print(Panel(
+            Text.from_markup(info_text),
+            title="[bold cyan]📦 Contextix Memory Integration Status[/bold cyan]",
+            border_style="cyan"
+        ))
+
     def render_help(self):
         """Displays interactive Slash Commands & Settings Help Menu."""
         table = Table(show_header=True, header_style="bold cyan", box=None, expand=True)
@@ -333,6 +353,7 @@ class TerminalUI:
         table.add_row("/config, /settings", "Melihat & mengonfigurasi pengaturan aktif (Model, Temp, GPU, Thread)")
         table.add_row("/models", "Daftar model Ollama lokal & pemetaan layer aktif")
         table.add_row("/memory", "Melihat status memori proyek (Short-term & Code Graph)")
+        table.add_row("/contextix, /context", "Status & manajemen memori Contextix (.context/ generate/status)")
         table.add_row("/status", "Melihat status lingkungan (Git branch, Ollama, GPU offload)")
         table.add_row("/clear", "Membersihkan riwayat percakapan short-term & layar terminal")
         table.add_row("/compact", "Meringkas (compact) riwayat memori percakapan")

@@ -7,7 +7,7 @@ from core.ollama_client import OllamaClient
 from core.intent_parser import IntentParser
 from core.planner import Planner
 from core.executor import Executor
-from core.memory import ProjectContext, ShortTermMemory, LongTermMemory
+from core.memory import ProjectContext, ShortTermMemory, LongTermMemory, ContextixAdapter
 from cli.ui import TerminalUI
 from cli.commands import SlashCommandHandler
 
@@ -30,9 +30,13 @@ def main():
     project_context = ProjectContext(working_dir)
     short_term_memory = ShortTermMemory(project_context)
     long_term_memory = LongTermMemory(project_context, ollama_client)
+    contextix_adapter = ContextixAdapter(project_context)
     
     # Build Code Knowledge Graph for current workspace
     long_term_memory.build_code_graph()
+
+    # Ensure Contextix memory on startup (auto-generate if missing & CLI available)
+    contextix_adapter.ensure_context_on_startup(ui)
 
     # Initialize Slash Command Handler
     cmd_handler = SlashCommandHandler(
@@ -40,7 +44,8 @@ def main():
         ollama_client=ollama_client,
         project_context=project_context,
         short_term_memory=short_term_memory,
-        long_term_memory=long_term_memory
+        long_term_memory=long_term_memory,
+        contextix_adapter=contextix_adapter
     )
 
     intent_parser = IntentParser(ollama_client=ollama_client)
@@ -126,8 +131,10 @@ def main():
                 )
                 continue
 
-            # Get active long-term code graph context filtered by target scope
+            # Get active long-term code graph context filtered by target scope + Contextix project rules
             long_term_ctx = long_term_memory.get_formatted_graph_context(target_scope=target_scope)
+            contextix_ctx = contextix_adapter.get_formatted_context()
+            combined_long_term_ctx = f"{contextix_ctx}\n\n{long_term_ctx}".strip() if contextix_ctx else long_term_ctx
 
             # Layer 2: Planning Loop with live updating status timer & memory
             revision_feedback: Optional[str] = None
@@ -141,7 +148,7 @@ def main():
                     plan_res = planner.create_plan(
                         intent_data=intent_data,
                         short_term_context=short_term_ctx,
-                        long_term_context=long_term_ctx,
+                        long_term_context=combined_long_term_ctx,
                         revision_feedback=revision_feedback
                     )
                 t_plan_elapsed = timer_plan["elapsed"]
@@ -208,6 +215,10 @@ def main():
 
             # Refresh Code Knowledge Graph after file modifications
             long_term_memory.build_code_graph()
+
+            # Auto-refresh Contextix project memory state after task execution
+            if completed_count > 0:
+                contextix_adapter.refresh_after_task(execution_summaries)
 
             ui.console.print(f"\n[bold green]✨ Selesai: {completed_count}/{len(steps)} langkah telah dieksekusi.[/bold green] [dim cyan](⏱️ Total Eksekusi: {t_exec_total:.2f}s)[/dim cyan]")
 

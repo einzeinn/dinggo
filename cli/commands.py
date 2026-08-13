@@ -9,12 +9,13 @@ class SlashCommandHandler:
     Inspired by Claude Code and Codex CLI.
     """
 
-    def __init__(self, ui, ollama_client, project_context, short_term_memory, long_term_memory):
+    def __init__(self, ui, ollama_client, project_context, short_term_memory, long_term_memory, contextix_adapter=None):
         self.ui = ui
         self.client = ollama_client
         self.context = project_context
         self.short_memory = short_term_memory
         self.long_memory = long_term_memory
+        self.contextix_adapter = contextix_adapter
 
     def get_git_branch(self) -> str:
         """Gets current git branch name if inside git repository."""
@@ -42,6 +43,22 @@ class SlashCommandHandler:
 
         if main_cmd in ("/help", "/?", "help"):
             self.ui.render_help()
+            return True
+
+        elif main_cmd in ("/contextix", "/context", "contextix", "context"):
+            if self.contextix_adapter:
+                subcmd = parts[1] if len(parts) > 1 else "status"
+                if subcmd in ("generate", "gen", "update", "run"):
+                    self.ui.console.print("\n[bold cyan]🔄 Menjalankan 'contextix generate' untuk memperbarui memori proyek...[/bold cyan]")
+                    res = self.contextix_adapter.run_generate()
+                    if res["success"]:
+                        self.ui.console.print(f"[bold green]✓ Contextix generate selesai dalam {res['elapsed']}s.[/bold green]")
+                    else:
+                        self.ui.console.print(f"[bold red]❌ Contextix generate gagal:[/bold red] {res.get('error')}")
+                else:
+                    self.ui.render_contextix_status(self.contextix_adapter.get_status())
+            else:
+                self.ui.console.print("[yellow]Modul ContextixAdapter belum diinisialisasi.[/yellow]")
             return True
 
         elif main_cmd in ("/config", "/settings", "config", "settings"):
