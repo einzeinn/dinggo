@@ -1,4 +1,5 @@
 import os
+import sys
 import shutil
 import subprocess
 import time
@@ -44,14 +45,13 @@ class ContextixAdapter:
         self._last_mtime: float = 0.0
 
     def is_available(self) -> bool:
-        """Check if contextix CLI or python package is available globally."""
-        if shutil.which("contextix"):
-            return True
+        """Check if contextix python package or CLI executable is available."""
         try:
-            import contextix  # noqa: F401
+            from contextix.core import generate_memory  # noqa: F401
             return True
         except ImportError:
-            return False
+            pass
+        return shutil.which("contextix") is not None
 
     def has_context(self) -> bool:
         """Check if .context/ directory exists and contains memory files."""
@@ -65,30 +65,50 @@ class ContextixAdapter:
             self.state = ContextState.DIRTY
 
     def run_generate(self) -> Dict[str, Any]:
-        """Synchronously runs `contextix generate` in active project working directory."""
+        """Synchronously runs Contextix memory generation for active project working directory."""
         if not self.is_available():
-            return {"success": False, "error": "CLI 'contextix' tidak ditemukan di PATH sistem."}
+            return {"success": False, "error": "Modul / CLI 'contextix' tidak terpasang di environment."}
 
+        start_t = time.time()
+
+        # Method 1: Direct Python API call (fastest, cross-platform, zero subprocess overhead)
         try:
-            cmd = ["contextix", "generate"]
-            start_t = time.time()
-            res = subprocess.run(
-                cmd,
-                cwd=self.working_dir,
-                capture_output=True,
-                text=True,
-                timeout=35.0
-            )
+            from contextix.core import generate_memory
+            generate_memory(self.working_dir)
             elapsed = round(time.time() - start_t, 2)
+            self.invalidate_cache()
+            self.state = ContextState.CLEAN
+            return {"success": True, "elapsed": elapsed, "output": "Direct Python API generate_memory completed."}
+        except Exception as e_api:
+            pass
 
-            if res.returncode == 0:
-                self.invalidate_cache()
-                self.state = ContextState.CLEAN
-                return {"success": True, "elapsed": elapsed, "output": res.stdout.strip()}
-            else:
-                return {"success": False, "error": res.stderr.strip() or res.stdout.strip() or f"Exit code {res.returncode}"}
-        except Exception as e:
-            return {"success": False, "error": f"Gagal menjalankan contextix generate: {str(e)}"}
+        # Method 2: Subprocess execution fallback (sys.executable -m contextix or contextix executable)
+        cmds = [
+            [sys.executable, "-m", "contextix", "generate"],
+            ["contextix", "generate"]
+        ]
+        last_error = ""
+
+        for cmd in cmds:
+            try:
+                res = subprocess.run(
+                    cmd,
+                    cwd=self.working_dir,
+                    capture_output=True,
+                    text=True,
+                    timeout=35.0
+                )
+                elapsed = round(time.time() - start_t, 2)
+                if res.returncode == 0:
+                    self.invalidate_cache()
+                    self.state = ContextState.CLEAN
+                    return {"success": True, "elapsed": elapsed, "output": res.stdout.strip()}
+                else:
+                    last_error = res.stderr.strip() or res.stdout.strip() or f"Exit code {res.returncode}"
+            except Exception as ex:
+                last_error = str(ex)
+
+        return {"success": False, "error": f"Gagal menjalankan contextix generate: {last_error}"}
 
     def refresh_post_execution(self, modified_files: Optional[List[str]] = None):
         """
