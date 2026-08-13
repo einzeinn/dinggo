@@ -94,3 +94,70 @@ class SemanticValidator:
             "reason": f"File '{rel_path}' valid secara semantik.",
             "suggested_action": None
         }
+
+    def validate_syntax(self, path: str, content: str) -> Dict[str, Any]:
+        """
+        Validates exact syntax/parsing correctness for supported file types (Python, JSON, YAML).
+        Returns structured dict with line and column numbers on error:
+        {"valid": bool, "type": str, "file": str, "line": Optional[int], "column": Optional[int], "message": str}
+        """
+        rel_path = os.path.normpath(path)
+        ext = os.path.splitext(rel_path)[1].lower()
+
+        if ext == ".py":
+            try:
+                ast.parse(content, filename=rel_path)
+                return {"valid": True, "type": "valid", "file": rel_path, "line": None, "column": None, "message": "Syntax Python valid."}
+            except SyntaxError as e:
+                return {
+                    "valid": False,
+                    "type": "syntax_error",
+                    "file": rel_path,
+                    "line": e.lineno or 1,
+                    "column": e.offset or 1,
+                    "message": f"SyntaxError di baris {e.lineno or 1}, kolom {e.offset or 1}: {e.msg}"
+                }
+            except Exception as ex:
+                return {
+                    "valid": False,
+                    "type": "syntax_error",
+                    "file": rel_path,
+                    "line": 1,
+                    "column": 1,
+                    "message": str(ex)
+                }
+
+        elif ext == ".json":
+            try:
+                json.loads(content)
+                return {"valid": True, "type": "valid", "file": rel_path, "line": None, "column": None, "message": "JSON valid."}
+            except json.JSONDecodeError as e:
+                return {
+                    "valid": False,
+                    "type": "syntax_error",
+                    "file": rel_path,
+                    "line": e.lineno or 1,
+                    "column": e.colno or 1,
+                    "message": f"JSONDecodeError di baris {e.lineno or 1}, kolom {e.colno or 1}: {e.msg}"
+                }
+
+        elif ext in (".yaml", ".yml"):
+            try:
+                import yaml
+                yaml.safe_load(content)
+                return {"valid": True, "type": "valid", "file": rel_path, "line": None, "column": None, "message": "YAML valid."}
+            except Exception as e:
+                line = getattr(e, "problem_mark", None)
+                lineno = line.line + 1 if line else 1
+                colno = line.column + 1 if line else 1
+                return {
+                    "valid": False,
+                    "type": "syntax_error",
+                    "file": rel_path,
+                    "line": lineno,
+                    "column": colno,
+                    "message": f"YAMLError di baris {lineno}, kolom {colno}: {str(e)}"
+                }
+
+        # Unsupported file types (e.g. .md, .txt) default to valid for syntax check
+        return {"valid": True, "type": "valid", "file": rel_path, "line": None, "column": None, "message": "Format file tidak memerlukan validasi sintaks khusus."}

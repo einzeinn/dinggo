@@ -287,10 +287,19 @@ class TerminalUI:
                 self.render_diff(target_path, result["diff"])
             elif result.get("code_content"):
                 self.render_code_preview(target_path, result["code_content"])
+            elif action in ("search_code", "view_outline", "list_dir") and result.get("output"):
+                title_label = "Hasil Search Code" if action == "search_code" else ("AST Outline File" if action == "view_outline" else "Isi Direktori")
+                syntax = Syntax(result["output"], "python" if action == "view_outline" else "text", theme="monokai", line_numbers=False)
+                self.console.print(Panel(
+                    syntax,
+                    title=f"[bold cyan]{title_label}[/bold cyan]",
+                    border_style="cyan"
+                ))
             elif result.get("output") and len(result["output"]) < 300:
                 self.console.print(f"    [dim]{result['output']}[/dim]")
         else:
-            self.console.print(f"[bold red]  ✗ Step {step_num} [{action}]: Gagal[/bold red]{timer_str}")
+            rolled_back_msg = " [bold yellow](Rolled Back)[/bold yellow]" if result.get("rolled_back") else ""
+            self.console.print(f"[bold red]  ✗ Step {step_num} [{action}]: Gagal[/bold red]{rolled_back_msg}{timer_str}")
             err_msg = result.get("error") or result.get("output") or "Error tidak diketahui"
             self.console.print(Panel(
                 Text(err_msg, style="bold red"),

@@ -109,3 +109,46 @@ class CodegenDelegate:
             "success": True,
             "code": content_clean
         }
+
+    def repair_code(
+        self,
+        target_path: str,
+        validation_error: str,
+        relevant_code: str,
+        original_task: str
+    ) -> Dict[str, Any]:
+        """
+        Generates compact repair code or SEARCH/REPLACE blocks specifically fixing a validation syntax error.
+        Only receives compact context: file path, error line/message, small code snippet, and task.
+        """
+        ext = os.path.splitext(target_path)[1].lower()
+        prompt = (
+            f"FILE TARGET: {target_path}\n"
+            f"ERROR SYNTAX/VALIDASI: {validation_error}\n"
+            f"TUGAS AWAL: {original_task}\n\n"
+            f"KODE TERKAIT SAAT INI:\n```{ext.strip('.')}\n{relevant_code[:2000]}\n```\n\n"
+            f"Perbaiki error sintaksis di atas. Anda dapat memberikan perbaikan berupa SEARCH/REPLACE block:\n"
+            f"<<<<<<< SEARCH\n[kode salah saat ini]\n=======\n[kode perbaikan]\n>>>>>>> REPLACE\n"
+            f"atau seluruh kode perbaikan yang valid."
+        )
+
+        res = self.client.generate(
+            model=self.model_name,
+            prompt=prompt,
+            system_prompt=self.system_prompt,
+            json_format=False,
+            temperature=0.1
+        )
+
+        if not res["success"]:
+            return {
+                "success": False,
+                "error": res.get("error", "Gagal melakukan repair code"),
+                "code": ""
+            }
+
+        content_clean = extract_content_block(res["response"], ext=ext)
+        return {
+            "success": True,
+            "code": content_clean
+        }
