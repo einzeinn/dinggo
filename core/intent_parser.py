@@ -62,7 +62,7 @@ class IntentParser:
 
     def __init__(self, ollama_client: Optional[OllamaClient] = None, config_path: str = "config/models.yaml"):
         self.client = ollama_client or OllamaClient()
-        self.model_name = os.getenv("MODEL_INTENT", "gemma-sea-lion:latest")
+        self.model_name = os.getenv("MODEL_INTENT_PARSER", os.getenv("MODEL_INTENT", "hf.co/aisingapore/Gemma-SEA-LION-v4.5-E2B-IT-GGUF:Q4_K_M"))
         self.system_prompt = self._load_system_prompt(config_path)
         self.max_retries = 2
 
