@@ -16,7 +16,7 @@ def main():
     """Main CLI entrypoint for Dinggo."""
     ui = TerminalUI()
     working_dir = os.getcwd()
-    ui.render_banner(working_dir)
+    ui.render_banner(os.path.basename(working_dir))
 
     ollama_client = OllamaClient()
     if not ollama_client.is_available():
@@ -230,7 +230,7 @@ def main():
                 final_plan = plan_res["plan"]
                 ui.render_plan(final_plan, elapsed=t_plan_elapsed)
 
-                choice, rev_text = ui.prompt_confirm_plan()
+                choice, rev_text = ui.prompt_confirm_plan(len(final_plan.get("steps", [])))
                 if choice == "Y":
                     plan_approved = True
                 elif choice == "N":
@@ -327,7 +327,7 @@ def main():
             if completed_count > 0:
                 contextix_adapter.refresh_post_execution(execution_summaries)
 
-            ui.console.print(f"\n[bold green]✨ Completed: {completed_count}/{len(steps)} steps.[/bold green] [dim](⏱️ {t_exec_total:.2f}s)[/dim]")
+            ui.console.print(f"\n[bold green]Completed · {completed_count}/{len(steps)} steps[/bold green] [dim](⏱️ {t_exec_total:.1f}s)[/dim]")
 
         except KeyboardInterrupt:
             ui.console.print("\n[bold yellow]⚠️ Operation cancelled by user.[/bold yellow]")
