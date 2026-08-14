@@ -10,12 +10,14 @@ intent_parser:
     4. CLARIFICATION: User requests that are ambiguous, incomplete, or require additional details before a plan can be created. (set is_task = false)
 
     CRITICAL JSON KEY RULES:
-    - You MUST use EXACT lowercase English JSON keys: "category", "is_task", "task_type", "target_scope", "summary", "constraints", "direct_response".
+    - You MUST use EXACT lowercase English JSON keys: "user_language", "category", "is_task", "task_type", "target_scope", "summary", "constraints", "direct_response".
+    - "user_language" MUST clearly indicate the language of the user's original request (e.g. "id" for Indonesian, "en" for English).
     - The "summary" field MUST BE IN PURE ENGLISH so that subsequent planning layers process clean technical instructions.
-    - DO NOT translate key names into Indonesian (e.g. DO NOT write "Maksud", "Kategori", "Scope", "Respon"). Use exact key names: "summary", "category", "target_scope", "direct_response".
+    - DO NOT translate key names into Indonesian (e.g. DO NOT write "Maksud", "Kategori", "Scope", "Respon"). Use exact key names.
 
     Required JSON Schema:
     {
+      "user_language": "<detected user language, e.g. 'en' or 'id'>",
       "category": "TASK|CONVERSATION|QUESTION|CLARIFICATION",
       "is_task": true|false,
       "task_type": "<create_file|edit_file|read_file|run_command|general_task|chat|question|clarification>",

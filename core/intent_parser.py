@@ -9,6 +9,10 @@ from core.ollama_client import OllamaClient
 
 
 class IntentSchema(BaseModel):
+    user_language: str = Field(
+        default="en",
+        description="Detected language of the user's original request (e.g. 'en' for English, 'id' for Indonesian)"
+    )
     category: str = Field(
         default="TASK",
         description="Intent category: TASK, CONVERSATION, QUESTION, or CLARIFICATION"
@@ -67,6 +71,7 @@ def normalize_intent_data(data: Dict[str, Any]) -> Dict[str, Any]:
     lower_data = {str(k).lower(): v for k, v in data.items()}
 
     alias_map = {
+        "user_language": ["user_language", "language", "bahasa", "lang"],
         "category": ["category", "kategori"],
         "is_task": ["is_task", "istask", "is_tugas"],
         "task_type": ["task_type", "tasktype", "tipe_task", "jenis_tugas"],

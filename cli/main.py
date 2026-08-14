@@ -124,6 +124,7 @@ def main():
             direct_resp = intent_data.get("direct_response")
             summary = intent_data.get("summary", "")
             target_scope = intent_data.get("target_scope", [])
+            user_language = intent_data.get("user_language", "id")
 
             # 1. CONVERSATION
             if category == "CONVERSATION" or (not is_task and category not in ("CLARIFICATION", "TASK")):
@@ -296,9 +297,9 @@ def main():
                     f"Original User Request: {user_input}\n"
                     f"Internal Technical Intent: {summary}\n\n"
                     f"Technical Step Findings:\n" + "\n\n".join(step_logs) + 
-                    "\n\nBased on the Original User Request, synthesize a final executive summary report. "
-                    "CRITICAL: You MUST write this final report in the EXACT SAME LANGUAGE that the user used in their 'Original User Request'! "
-                    "(e.g. if the request was Indonesian, write in Indonesian. If English, write in English)."
+                    f"\n\nBased on the Original User Request, synthesize a final executive summary report. "
+                    f"CRITICAL: You MUST write this final report entirely in the '{user_language}' language! "
+                    "Do not use English unless the user's language is English."
                 )
 
                 with ui.live_status("intent", "Synthesizing final executive summary report...") as timer_sum:
