@@ -29,58 +29,19 @@ class Executor:
 
     def resolve_target_path(self, target_path: Optional[str], instruction: str, project_root: str = ".") -> Optional[str]:
         """
-        Intelligently resolves target_path using exact checks, fuzzy workspace matching, and instruction regex parsing.
+        Resolves target_path strictly. 
+        Does NOT perform fuzzy workspace matching or instruction regex guessing.
+        Returns the resolved path if it's a valid relative or absolute path, else None.
         """
         clean_path = str(target_path).strip() if target_path else None
         if clean_path and clean_path.lower() in ("-", "null", "n/a", "none", ""):
-            clean_path = None
+            return None
 
         if clean_path:
             full_path = clean_path if os.path.isabs(clean_path) else os.path.join(project_root, clean_path)
             if os.path.exists(full_path):
                 return clean_path
-
-            target_filename = os.path.basename(clean_path).lower()
-            target_no_ext = os.path.splitext(target_filename)[0].lower()
-
-            for root, dirs, files in os.walk(project_root):
-                dirs[:] = [d for d in dirs if not d.startswith(".") and d not in ("venv", ".venv", "__pycache__", "build", "dist", "node_modules")]
-                for f in files:
-                    f_lower = f.lower()
-                    rel_file = os.path.relpath(os.path.join(root, f), project_root)
-                    if f_lower == target_filename or (target_no_ext and target_no_ext == os.path.splitext(f_lower)[0]):
-                        return rel_file
-
-        # Extract file paths from instruction (e.g., 'backend/app.py', 'cli/main.py', 'app.py')
-        import re as _re
-        path_matches = _re.findall(r"([a-zA-Z0-9_\-\/\\]+\.[a-zA-Z0-9]+)", instruction or "")
-        for candidate in path_matches:
-            cand_clean = candidate.strip("\\/ ")
-            cand_full = os.path.join(project_root, cand_clean)
-            if os.path.exists(cand_full):
-                return cand_clean
-            cand_base = os.path.basename(cand_clean).lower()
-            for root, dirs, files in os.walk(project_root):
-                dirs[:] = [d for d in dirs if not d.startswith(".") and d not in ("venv", ".venv", "__pycache__", "build", "dist", "node_modules")]
-                for f in files:
-                    if f.lower() == cand_base:
-                        return os.path.relpath(os.path.join(root, f), project_root)
-
-        combined_text = f"{clean_path or ''} {instruction}".lower()
-        words = [w for w in combined_text.replace("_", " ").replace("-", " ").replace(".", " ").split() if len(w) > 3 and w not in ("file", "coba", "perbaiki", "ubah", "baca", "tulis", "buat", "agar", "isinya", "murni", "dokumen", "asli", "yang", "profesional", "mudah", "dibaca", "code", "read", "edit")]
-        
-        matches = []
-        for root, dirs, files in os.walk(project_root):
-            dirs[:] = [d for d in dirs if not d.startswith(".") and d not in ("venv", ".venv", "__pycache__", "build", "dist", "node_modules")]
-            for f in files:
-                f_lower = f.lower()
-                rel_file = os.path.relpath(os.path.join(root, f), project_root)
-                if any(w in f_lower for w in words):
-                    matches.append(rel_file)
-
-        if matches:
-            return matches[0]
-
+                
         return clean_path
 
     def execute_step(self, step: Dict[str, Any], project_root: str = ".") -> Dict[str, Any]:
@@ -112,32 +73,23 @@ class Executor:
 
         # 0. general_response handling
         if action_type in ("general_response", "respond", "info", "general_task", "none"):
-            result["success"] = True
-            desc = instruction or step.get("description", "General response step completed.")
+            result["success"] = False  # Not an execution success
+            result["is_response_only"] = True
+            desc = instruction or step.get("description", "General response step.")
             result["output"] = f"{desc}\n[WARNING: This is a general response step. NO files were read and NO execution evidence was gathered.]"
             return result
 
-        # Graceful fallback for read_file/view_outline when target_path is not resolvable
-        if action_type in ("read_file", "view_outline") and (not target_full_path or not os.path.exists(target_full_path)):
-            search_query = (command or "").strip()
-            if search_query and len(search_query.split()) <= 3:
-                search_res = search_code(query=search_query, root_dir=project_root)
-                if search_res["success"] and search_res.get("output"):
-                    result["action_type"] = "search_code"
-                    result["target_path"] = search_query
-                    result["success"] = True
-                    result["output"] = search_res["output"]
-                    return result
-            
-            result["success"] = False
-            result["error"] = f"Target path '{raw_target_path}' not found or empty. You must specify a valid file path, or use 'list_dir' to find files."
-            return result
-
-        # Fail explicitly if write_file/edit_file has no target_path
-        if action_type in ("read_file", "write_file", "edit_file", "generate_code", "view_outline") and not target_full_path:
-            result["success"] = False
-            result["error"] = f"Execution failed [{action_type}]: Target file path was not specified by Planner and not found in project."
-            return result
+        # Fail explicitly if executable action has no target_path
+        if action_type in ("read_file", "write_file", "edit_file", "generate_code", "view_outline"):
+            if not target_path or not target_full_path:
+                result["success"] = False
+                result["error"] = f"Execution failed [{action_type}]: Target file path was missing, explicitly invalid, or not specified by Planner."
+                return result
+                
+            if action_type in ("read_file", "view_outline") and not os.path.exists(target_full_path):
+                result["success"] = False
+                result["error"] = f"Target path '{raw_target_path}' not found. You must specify a valid file path, or use 'list_dir' to find files."
+                return result
 
         # 1. read_file
         if action_type == "read_file":
@@ -308,7 +260,7 @@ class Executor:
             res = self.execute_step(step, project_root=project_root)
             executed_results.append(res)
 
-            if not res["success"]:
+            if not res["success"] and not res.get("is_response_only"):
                 overall_success = False
                 break  # Stop execution on failure
 

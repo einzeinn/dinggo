@@ -270,6 +270,9 @@ def main():
                     execution_summaries.append(f"Step {step_num} [{action}]: Success")
                     if action in ("write_file", "edit_file", "generate_code"):
                         contextix_adapter.mark_dirty()
+                elif res.get("is_response_only"):
+                    completed_count += 1
+                    execution_summaries.append(f"Step {step_num} [{action}]: Response Only")
                 else:
                     execution_summaries.append(f"Step {step_num} [{action}]: Failed ({res.get('error')})")
                     ui.console.print(f"[bold red]Execution stopped at step {step_num}.[/bold red]")
@@ -279,14 +282,20 @@ def main():
             exec_full_summary = f"{completed_count}/{len(steps)} steps succeeded."
 
             # Layer 1 Final Task Summary
-            if completed_count > 0:
+            if len(step_results) > 0:
                 step_logs = []
-                for s, r in zip(steps[:completed_count], step_results[:completed_count]):
+                for s, r in zip(steps[:len(step_results)], step_results):
                     s_num = s.get("step_number")
                     act = s.get("action_type")
-                    out = r.get("output", "") or r.get("code_content", "") or "Success"
+                    out = r.get("output", "") or r.get("code_content", "") or ("Success" if r.get("success") else "Failed")
                     if len(out) > 500: out = out[:500] + "..."
-                    step_logs.append(f"Step #{s_num} [{act}]:\n{out}")
+                    
+                    if r.get("is_response_only"):
+                        step_logs.append(f"Step #{s_num} [{act}] (RESPONSE ONLY - NO EXECUTION EVIDENCE):\n{out}")
+                    elif r.get("success"):
+                        step_logs.append(f"Step #{s_num} [{act}] (SUCCESSFUL EXECUTION):\n{out}")
+                    else:
+                        step_logs.append(f"Step #{s_num} [{act}] (FAILED EXECUTION):\n{r.get('error')}")
 
                 sum_system = (
                     "You are the Dinggo project assistant. Your task is to synthesize a clear, comprehensive final executive summary report "

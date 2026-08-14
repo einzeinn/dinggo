@@ -69,7 +69,7 @@ def normalize_plan_data(data: Dict[str, Any]) -> Dict[str, Any]:
                 if act in ACTION_TYPE_MAP:
                     step["action_type"] = ACTION_TYPE_MAP[act]
                 elif act not in VALID_ACTION_TYPES:
-                    step["action_type"] = "read_file" if ("file" in act or "code" in act or "dir" in act) else "general_response"
+                    raise ValueError(f"Invalid action_type '{act}'. Must be one of: {', '.join(VALID_ACTION_TYPES)}")
     return data
 
 
@@ -176,7 +176,7 @@ class Planner:
                     "plan": validated.model_dump(),
                     "attempts": attempt
                 }
-            except ValidationError as e:
+            except (ValidationError, ValueError) as e:
                 last_error = f"Error Validation Plan Schema: {str(e)}\nRaw Response: {sanitized[:200]}"
 
         return {
