@@ -3,7 +3,7 @@ import json
 import re
 import yaml
 from typing import List, Optional, Dict, Any
-from pydantic import BaseModel, Field, ValidationError
+from pydantic import BaseModel, Field, ValidationError, model_validator
 
 from core.ollama_client import OllamaClient
 from core.intent_parser import extract_json_payload
@@ -21,6 +21,25 @@ class PlanStep(BaseModel):
         default=None,
         description="Specific code generation or modification instruction if action_type=generate_code or edit_file"
     )
+
+    @model_validator(mode="after")
+    def validate_executable_targets(self):
+        act = self.action_type.lower()
+        t_path = (self.target_path or "").strip().lower()
+        invalid_targets = {"-", "null", "n/a", "none", ""}
+        
+        if act in ("read_file", "write_file", "edit_file", "generate_code", "view_outline", "search_code"):
+            if t_path in invalid_targets:
+                raise ValueError("The previous plan contains an executable target only inside the details field. Move the exact target into target_path. Do not change the intended operation.")
+        elif act == "list_dir":
+            if t_path == "-" or not t_path:
+                raise ValueError("The previous plan contains an executable target only inside the details field. Move the exact target into target_path. Do not change the intended operation.")
+        elif act == "run_command":
+            cmd = (self.command or "").strip()
+            if not cmd or cmd == "-":
+                raise ValueError("The previous plan contains an executable command only inside the details field. Move the exact command into 'command'. Do not change the intended operation.")
+                
+        return self
 
 
 class PlanSchema(BaseModel):
@@ -121,7 +140,13 @@ class Planner:
             prompt_content += f"\n[User Feedback/Revision Request]:\n{revision_feedback}\n"
 
         prompt_content += "\nPlease construct a step-by-step execution plan in valid JSON format matching the schema."
-        prompt_content += "\nCRITICAL: YOUR ENTIRE RESPONSE (INCLUDING 'description' AND 'instruction' FIELDS) MUST BE WRITTEN IN ENGLISH."
+        prompt_content += (
+            "\nCRITICAL RULES:\n"
+            "1. ENTIRE RESPONSE MUST BE IN ENGLISH.\n"
+            "2. 'target_path' MUST contain the exact file/directory path ONLY. Do NOT put paths inside 'description'.\n"
+            "3. 'command' MUST contain the exact shell command ONLY.\n"
+            "4. 'description' MUST contain human-readable explanation ONLY. No executable instructions hiding here.\n"
+        )
 
         last_error = ""
         for attempt in range(1, self.max_retries + 1):
