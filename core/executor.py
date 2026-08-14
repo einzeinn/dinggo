@@ -113,7 +113,8 @@ class Executor:
         # 0. general_response handling
         if action_type in ("general_response", "respond", "info", "general_task", "none"):
             result["success"] = True
-            result["output"] = instruction or step.get("description", "General response step completed.")
+            desc = instruction or step.get("description", "General response step completed.")
+            result["output"] = f"{desc}\n[WARNING: This is a general response step. NO files were read and NO execution evidence was gathered.]"
             return result
 
         # Graceful fallback for read_file/view_outline when target_path is not resolvable
@@ -128,13 +129,8 @@ class Executor:
                     result["output"] = search_res["output"]
                     return result
             
-            from tools.file_ops import list_dir
-            list_res = list_dir(project_root)
-            items = [i["name"] for i in list_res.get("items", [])]
-            result["action_type"] = "list_dir"
-            result["target_path"] = "."
-            result["success"] = True
-            result["output"] = f"Target file not found. Auto-fallback to list_dir.\nFiles in root:\n{', '.join(items)}"
+            result["success"] = False
+            result["error"] = f"Target path '{raw_target_path}' not found or empty. You must specify a valid file path, or use 'list_dir' to find files."
             return result
 
         # Fail explicitly if write_file/edit_file has no target_path

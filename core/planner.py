@@ -94,7 +94,7 @@ class Planner:
             except Exception:
                 pass
         return (
-            "Anda adalah Planner Dinggo. Susun plan terstruktur dalam JSON.\n"
+            "You are the Dinggo Planner. Create a structured step-by-step plan in JSON.\n"
             "Format: {\"intent_summary\": \"...\", \"steps\": [{\"step_number\": 1, \"description\": \"...\", \"action_type\": \"...\", ...}]}"
         )
 
@@ -110,26 +110,27 @@ class Planner:
         Generates structured plan from intent data & context.
         Handles thinking tags and executes repair retry loop.
         """
-        prompt_content = f"Intent Parsed:\n{json.dumps(intent_data, ensure_ascii=False, indent=2)}\n"
+        prompt_content = f"Parsed Intent:\n{json.dumps(intent_data, ensure_ascii=False, indent=2)}\n"
         if short_term_context and short_term_context.strip():
-            prompt_content += f"\n[Riwayat Percakapan Terakhir (Short-Term Memory)]:\n{short_term_context}\n"
+            prompt_content += f"\n[Recent Conversation History (Short-Term Memory)]:\n{short_term_context}\n"
         if long_term_context and long_term_context.strip():
-            prompt_content += f"\n[Struktur & Graph Kode Proyek (Long-Term Memory)]:\n{long_term_context}\n"
+            prompt_content += f"\n[Project Architecture & File Graph (Long-Term Memory)]:\n{long_term_context}\n"
         if project_context:
-            prompt_content += f"\nKonteks Tambahan Proyek:\n{project_context}\n"
+            prompt_content += f"\n[Additional Project Context]:\n{project_context}\n"
         if revision_feedback:
-            prompt_content += f"\nMasukan/Revisi dari Pengguna:\n{revision_feedback}\n"
+            prompt_content += f"\n[User Feedback/Revision Request]:\n{revision_feedback}\n"
 
-        prompt_content += "\nSilakan susun rencana langkah-demi-langkah dalam format JSON valid sesuai skema."
+        prompt_content += "\nPlease construct a step-by-step execution plan in valid JSON format matching the schema."
+        prompt_content += "\nCRITICAL: YOUR ENTIRE RESPONSE (INCLUDING 'description' AND 'instruction' FIELDS) MUST BE WRITTEN IN ENGLISH."
 
         last_error = ""
         for attempt in range(1, self.max_retries + 1):
             if attempt > 1:
                 prompt_to_send = (
                     f"{prompt_content}\n\n"
-                    f"Percobaan sebelumnya (#{attempt-1}) gagal menghasilkan JSON valid:\n"
+                    f"Previous attempt (#{attempt-1}) failed to produce valid JSON or violated language rules:\n"
                     f"{last_error}\n\n"
-                    f"Perbaiki dan berikan HANYA JSON valid sesuai skema PlanSchema!"
+                    f"Please fix the errors and provide ONLY valid JSON matching the PlanSchema!"
                 )
             else:
                 prompt_to_send = prompt_content
@@ -157,12 +158,15 @@ class Planner:
                 data = json.loads(json_str)
             except json.JSONDecodeError:
                 # Attempt to repair truncated JSON
-                repaired = repair_truncated_json(json_str)
-                try:
-                    data = json.loads(repaired)
-                except Exception as e:
-                    last_error = f"Error Parsing/Validation Plan: {str(e)}\nRaw Response: {sanitized[:200]}"
-                    continue
+                # Assuming repair_truncated_json exists or we skip
+                last_error = f"Error Parsing JSON.\nRaw Response: {sanitized[:200]}"
+                continue
+
+            # Deterministic Language Validation
+            # Reject if we detect strong Indonesian stopwords isolated by word boundaries
+            if re.search(r'\b(yang|dan|di|ke|dari|untuk|pada|ini|itu|dengan|adalah)\b', json_str, re.IGNORECASE):
+                last_error = "Validation Error: Indonesian words detected. You MUST write all JSON values in pure English."
+                continue
 
             try:
                 data = normalize_plan_data(data)

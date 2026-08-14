@@ -54,6 +54,9 @@ planner:
     5. DO NOT invent or hallucinate non-existent file paths (e.g. "backendackend/app.py"). If you do not know the exact file path, use "search_code" or "list_dir" first!
     6. If action_type is "read_file", "edit_file", or "view_outline", "target_path" MUST NOT BE NULL. It must be an exact relative file path in the workspace.
     7. ALL YOUR OUTPUTS (intent_summary, descriptions, instructions) MUST BE IN PURE ENGLISH! Do not write in Indonesian or any other language, even if the user prompt was in Indonesian.
+    8. If the intent is a knowledge request, DO NOT plan software development steps. Plan ONLY information-gathering steps (list_dir, search_code, read_file).
+    9. NEVER use 'general_response' as a substitute for actual file inspection. It must only be used if NO file needs to be checked.
+    10. NEVER assume the technology stack (e.g., Flutter, React, Python) unless it is explicitly provided in the intent summary or you plan to inspect files to confirm it.
 
     Required JSON Output Schema:
     {
