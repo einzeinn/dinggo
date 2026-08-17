@@ -29,11 +29,13 @@ class ProductFactoryWizard:
         root_dir: str = ".",
         console: Optional[Console] = None,
         state_manager: Optional[StateManager] = None,
+        ollama_client: Optional[Any] = None,
         non_interactive: bool = False
     ):
         self.root_dir = os.path.abspath(root_dir)
         self.console = console or Console()
         self.state_mgr = state_manager or StateManager(self.root_dir)
+        self.ollama_client = ollama_client
         self.detector = ProjectDetector(self.root_dir)
         self.spec_parser = SpecParser(self.root_dir)
         self.spec_generator = SpecGenerator(self.root_dir)
@@ -151,60 +153,33 @@ class ProductFactoryWizard:
             self.console.print(f"[dim]Contextix skipped: {e}[/dim]")
 
     def step_6_plan_and_review(self, spec: ProductSpec) -> bool:
-        """Step 6: Generate Execution Plan and present Approval Gate 1."""
+        """Step 6: Generate Execution Plan DAG and present Approval Gate 1."""
+        from core.planner import Planner
+        from cli.gates.plan_review import PlanReviewGate
+
         self.console.print("\n[bold white]Step 5/6: Execution Plan Generation[/bold white]")
         self.state_mgr.transition_to(PipelinePhase.PLANNING, PipelineStatus.IN_PROGRESS, "Generating execution plan DAG")
         self.console.print("[cyan]Planner is constructing task dependency graph from specification...[/cyan]")
 
-        # Create structured plan representation
-        plan_summary = {
-            "project_name": spec.name,
-            "requirements_count": len(spec.requirements),
-            "architecture": spec.architecture.framework or "Default Stack",
-            "database": spec.architecture.database or "SQLite/Postgres",
-            "tasks_count": max(len(spec.requirements) * 2, 4),
-            "dependencies_count": len(spec.requirements)
-        }
-        self.state_mgr.state.active_plan = plan_summary
-        self.state_mgr.state.stats.tasks_total = plan_summary["tasks_count"]
+        planner = Planner(ollama_client=self.ollama_client)
+        plan_res = planner.create_product_task_graph(spec)
+        graph = plan_res["graph"]
+
+        self.state_mgr.state.active_plan = graph.model_dump(mode="json")
+        self.state_mgr.state.stats.tasks_total = len(graph.tasks)
         self.state_mgr.transition_to(PipelinePhase.APPROVAL_GATE_1, PipelineStatus.AWAITING_APPROVAL, "Awaiting Plan Approval")
 
         # Step 7: Approval Gate 1 Review Panel
-        self.console.print("\n[bold white]Step 6/6: Plan Review (Approval Gate 1)[/bold white]")
-        review_table = Table(box=None, show_header=False, padding=(0, 2))
-        review_table.add_column("Metric", style="bold cyan", width=22)
-        review_table.add_column("Value", style="bold white")
+        gate = PlanReviewGate(console=self.console)
+        approved, feedback = gate.review_and_confirm(graph, non_interactive=self.non_interactive)
 
-        review_table.add_row("Project Target:", spec.name)
-        review_table.add_row("Traceable Requirements:", str(len(spec.requirements)))
-        review_table.add_row("Generated Tasks:", str(plan_summary["tasks_count"]))
-        review_table.add_row("Task Dependencies:", str(plan_summary["dependencies_count"]))
-        review_table.add_row("Architecture Framework:", plan_summary["architecture"])
-        review_table.add_row("Database Engine:", plan_summary["database"])
-
-        panel = Panel(
-            review_table,
-            title="[bold yellow]🛡️  APPROVAL GATE 1: PLAN REVIEW[/bold yellow]",
-            border_style="yellow",
-            padding=(1, 2)
-        )
-        self.console.print(panel)
-
-        if self.non_interactive:
-            choice = "1"
-        else:
-            self.console.print("[bold white]Actions:[/bold white] [1] Approve Plan  [2] Revise Plan  [3] Cancel")
-            choice = Prompt.ask("Choose action", choices=["1", "2", "3"], default="1")
-
-        if choice == "1":
+        if approved:
             self.state_mgr.transition_to(PipelinePhase.IMPLEMENTING, PipelineStatus.IN_PROGRESS, "Plan approved, ready to execute", can_resume=True)
-            self.console.print("[bold green]✓ Execution Plan Approved! Ready to execute.[/bold green]")
             return True
-        elif choice == "2":
-            self.console.print("[yellow]Plan marked for revision.[/yellow]")
-            self.state_mgr.transition_to(PipelinePhase.PLANNING, PipelineStatus.PAUSED, "Plan revision requested", can_resume=True)
+        elif feedback:
+            self.console.print(f"[yellow]Plan revision requested: {feedback}[/yellow]")
+            self.state_mgr.transition_to(PipelinePhase.PLANNING, PipelineStatus.PAUSED, f"Revision requested: {feedback}", can_resume=True)
             return False
         else:
-            self.console.print("[dim]Wizard cancelled.[/dim]")
             self.state_mgr.transition_to(PipelinePhase.IDLE, PipelineStatus.IDLE, "Wizard cancelled")
             return False

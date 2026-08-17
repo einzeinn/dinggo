@@ -23,10 +23,15 @@ class TestInteractiveWizardAndSettings(unittest.TestCase):
 
     def test_wizard_non_interactive_flow(self):
         """Test wizard non-interactive execution from project detection to plan approval."""
+        from unittest.mock import MagicMock
+        mock_client = MagicMock()
+        mock_client.is_available.return_value = False
+
         wizard = ProductFactoryWizard(
             root_dir=self.test_dir,
             console=self.console,
             state_manager=self.state_mgr,
+            ollama_client=mock_client,
             non_interactive=True
         )
 

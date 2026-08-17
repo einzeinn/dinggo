@@ -7,6 +7,7 @@ from pydantic import BaseModel, Field, ValidationError, model_validator
 
 from core.ollama_client import OllamaClient
 from core.intent_parser import extract_json_payload
+from core.planner.task_graph import TaskGraphSchema, TaskNode
 
 
 class PlanStep(BaseModel):
@@ -96,6 +97,7 @@ class Planner:
     """
     Layer 2: Planner / Orchestrator Wrapper (Qwen3.5-4B thinking mode).
     Converts intent & context into structured PlanSchema with thinking tag handling and repair retry loop.
+    Also provides DAG TaskGraph generation for Product Factory specifications.
     """
 
     def __init__(self, ollama_client: Optional[OllamaClient] = None, config_path: str = "config/models.yaml"):
@@ -182,13 +184,10 @@ class Planner:
             try:
                 data = json.loads(json_str)
             except json.JSONDecodeError:
-                # Attempt to repair truncated JSON
-                # Assuming repair_truncated_json exists or we skip
                 last_error = f"Error Parsing JSON.\nRaw Response: {sanitized[:200]}"
                 continue
 
             # Deterministic Language Validation
-            # Reject if we detect strong Indonesian stopwords isolated by word boundaries
             if re.search(r'\b(yang|dan|di|ke|dari|untuk|pada|ini|itu|dengan|adalah)\b', json_str, re.IGNORECASE):
                 last_error = "Validation Error: Indonesian words detected. You MUST write all JSON values in pure English."
                 continue
@@ -209,3 +208,137 @@ class Planner:
             "error": f"Planner gagal menghasilkan JSON valid setelah {self.max_retries} percobaan. Detail: {last_error}",
             "plan": None
         }
+
+    def create_product_task_graph(
+        self,
+        spec: Any,
+        context: Optional[str] = None
+    ) -> Dict[str, Any]:
+        """
+        Converts a ProductSpec and repository context into an executable DAG TaskGraphSchema.
+        Includes LLM generation with automatic deterministic fallback.
+        """
+        req_list = getattr(spec, "requirements", [])
+        project_name = getattr(spec, "name", "Unnamed Project")
+        arch_obj = getattr(spec, "architecture", None)
+        framework = getattr(arch_obj, "framework", "FastAPI + React") or "FastAPI + React"
+        database = getattr(arch_obj, "database", "PostgreSQL / SQLite") or "PostgreSQL / SQLite"
+
+        # Attempt LLM Task Graph Generation if Ollama is available
+        if self.client.is_available():
+            prompt_content = (
+                f"Generate a Directed Acyclic Graph (DAG) of execution tasks for product: '{project_name}'.\n"
+                f"Architecture: {framework} | Database: {database}\n\n"
+                "Requirements to implement:\n"
+            )
+            for r in req_list:
+                prompt_content += f"- [{r.id}] {r.title}: {r.description} (Priority: {r.priority})\n"
+
+            if context:
+                prompt_content += f"\n[Project Intelligence Context]:\n{context}\n"
+
+            prompt_content += (
+                "\nOutput JSON schema:\n"
+                "{\n"
+                '  "project_name": "...",\n'
+                '  "architecture": "...",\n'
+                '  "database": "...",\n'
+                '  "tasks": [\n'
+                '    {"id": "TASK-001", "title": "...", "description": "...", "requirement_id": "...", "worker_type": "backend", "target_files": ["..."], "depends_on": []}\n'
+                "  ]\n"
+                "}\n"
+                "CRITICAL: Tasks must form a valid DAG (no cycles). Each requirement must be covered."
+            )
+
+            try:
+                res = self.client.generate(
+                    model=self.model_name,
+                    prompt=prompt_content,
+                    json_format=True,
+                    think=False,
+                    temperature=0.2,
+                    num_ctx=4096,
+                    num_predict=1024
+                )
+                if res.get("success"):
+                    sanitized = sanitize_thinking_output(res["response"])
+                    json_str = extract_json_payload(sanitized)
+                    data = json.loads(json_str)
+                    graph = TaskGraphSchema(**data)
+                    return {"success": True, "graph": graph, "source": "llm"}
+            except Exception:
+                pass
+
+        # Deterministic Fallback DAG Generator
+        tasks: List[TaskNode] = []
+        task_idx = 1
+
+        # 1. Base setup task
+        setup_id = f"TASK-{task_idx:03d}"
+        tasks.append(TaskNode(
+            id=setup_id,
+            title="Setup project scaffolding & environment configuration",
+            description=f"Initialize project scaffolding for {framework}.",
+            requirement_id=None,
+            worker_type="infra",
+            target_files=["dinggo.yaml", "README.md"],
+            depends_on=[]
+        ))
+        task_idx += 1
+
+        # 2. Database schema task
+        db_id = f"TASK-{task_idx:03d}"
+        tasks.append(TaskNode(
+            id=db_id,
+            title="Initialize database models and migrations",
+            description=f"Set up {database} schema models and connection pools.",
+            requirement_id=None,
+            worker_type="database",
+            target_files=["models.py"],
+            depends_on=[setup_id]
+        ))
+        task_idx += 1
+
+        # 3. Requirement-driven tasks
+        prev_dep = db_id
+        for req in req_list:
+            t_id = f"TASK-{task_idx:03d}"
+            worker = "backend"
+            if "ui" in req.category.lower() or "frontend" in req.title.lower():
+                worker = "frontend"
+            elif "db" in req.category.lower() or "data" in req.category.lower():
+                worker = "database"
+            elif "security" in req.category.lower():
+                worker = "backend"
+
+            tasks.append(TaskNode(
+                id=t_id,
+                title=f"Implement {req.title or req.id}",
+                description=f"Implement requirement [{req.id}]: {req.description}",
+                requirement_id=req.id,
+                worker_type=worker,
+                target_files=[f"{req.id.lower().replace('-', '_')}.py"],
+                depends_on=[prev_dep]
+            ))
+            prev_dep = t_id
+            task_idx += 1
+
+        # 4. Integration task
+        integ_id = f"TASK-{task_idx:03d}"
+        tasks.append(TaskNode(
+            id=integ_id,
+            title="End-to-End System Integration & Wiring",
+            description="Wire backend API endpoints with frontend views and test coverage.",
+            requirement_id=None,
+            worker_type="integration",
+            target_files=["main.py"],
+            depends_on=[prev_dep]
+        ))
+
+        graph = TaskGraphSchema(
+            project_name=project_name,
+            architecture=framework,
+            database=database,
+            tasks=tasks
+        )
+        return {"success": True, "graph": graph, "source": "deterministic_fallback"}
