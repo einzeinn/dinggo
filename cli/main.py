@@ -14,8 +14,28 @@ from cli.commands import SlashCommandHandler
 
 def main():
     """Main CLI entrypoint for Dinggo."""
-    ui = TerminalUI()
     working_dir = os.getcwd()
+
+    # Route interface / wizard subcommands
+    if len(sys.argv) > 1:
+        cmd = sys.argv[1].lower().strip()
+        if cmd in ("interface", "tui", "menu", "factory"):
+            from cli.interface import ProductFactoryInterface
+            interface = ProductFactoryInterface(working_dir)
+            interface.start()
+            return
+        elif cmd in ("wizard", "init"):
+            from cli.wizard import ProductFactoryWizard
+            wizard = ProductFactoryWizard(working_dir)
+            wizard.run()
+            return
+        elif cmd in ("settings", "config"):
+            from cli.settings_view import SettingsView
+            settings = SettingsView(working_dir)
+            settings.display_menu()
+            return
+
+    ui = TerminalUI()
     ui.render_banner(os.path.basename(working_dir))
 
     ollama_client = OllamaClient()
