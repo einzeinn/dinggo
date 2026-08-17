@@ -172,7 +172,7 @@ class ProductFactoryInterface:
 
     def _review_action(self) -> None:
         """Handler for option 5: Review."""
-        self.console.print("\n[bold cyan]🛡️  INDEPENDENT PRODUCT REVIEWER[/bold cyan]")
-        self.console.print("[dim]Preparing independent audit (Codex / Claude / Ollama adapter)...[/dim]")
-        self.console.print("[green]Ready to audit requirements, code quality, security, and architecture.[/green]")
+        from cli.review_view import ReviewDashboard
+        dashboard = ReviewDashboard(self.root_dir, console=self.console, state_manager=self.state_mgr)
+        dashboard.display_and_run()
         Prompt.ask("\nPress Enter to return", default="")
