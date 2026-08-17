@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "dinggo"
-version = "0.2.0"
+version = "0.2.1"
 description = "Specification-Driven AI Product Factory with multi-worker DAG execution, automated self-repair, and independent review audits"
 readme = "README.md"
 requires-python = ">=3.10"

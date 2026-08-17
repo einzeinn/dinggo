@@ -47,7 +47,7 @@ class ProductFactoryInterface:
             "[bold bright_blue] | |) | || .` | (_| (_ | (_) | [/bold bright_blue]\n"
             "[bold blue] |___/___|_|\\_|\\___\\___|\\___/  [/bold blue]"
         )
-        subtitle = "[bold white]🐕 DINGGO PRODUCT FACTORY[/bold white] [dim]· Specification-Driven AI Engine · v0.2.0[/dim]"
+        subtitle = "[bold white]🐕 DINGGO PRODUCT FACTORY[/bold white] [dim]· Specification-Driven AI Engine · v0.2.1[/dim]"
         self.console.print(f"{logo_text}\n{subtitle}\n")
 
         project_name = os.path.basename(self.root_dir)
