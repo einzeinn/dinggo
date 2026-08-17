@@ -107,7 +107,11 @@ class SpecParser:
             header = sec_lines[0].lower()
             body = "\n".join(sec_lines[1:]).strip()
 
-            if "summary" in header or "vision" in header or "overview" in header:
+            if "name" in header or "title" in header:
+                info["name"] = body.splitlines()[0].strip() if body else info["name"]
+            elif "version" in header:
+                info["version"] = body.splitlines()[0].strip() if body else info["version"]
+            elif "summary" in header or "vision" in header or "overview" in header or "description" in header:
                 info["summary"] = body
             elif "target" in header or "user" in header:
                 info["target_users"] = [line.lstrip("*-• ").strip() for line in body.splitlines() if line.strip().startswith(("-", "*", "•"))]
@@ -150,8 +154,8 @@ class SpecParser:
                 continue
 
         # 2. Markdown regex extraction for patterns like:
-        # ### AUTH-001: User Login or - [ ] **AUTH-001**: Description
-        id_pattern = r"(?:###|\-|\*)\s*(?:\[\s*\]\s*)?(?:\*\*)?([A-Z]{2,10}-\d{2,5})(?:\*\*)?[:\s]+([^\n]+)"
+        # ### AUTH-001: User Login, ## AUTH-001 - User Login, - [AUTH-001] Description, - [ ] **AUTH-001**: Description
+        id_pattern = r"(?:##|###|\-|\*)\s*(?:\[\s*\]\s*)?(?:\[|\*\*)?([A-Z]{2,10}-\d{2,5})(?:\]|\*\*)?[:\s\-]+([^\n]+)"
         for match in re.finditer(id_pattern, content):
             req_id, desc = match.group(1).strip(), match.group(2).strip()
             # Avoid duplicating IDs already captured via YAML
