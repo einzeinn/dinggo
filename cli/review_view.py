@@ -65,9 +65,16 @@ class ReviewDashboard:
         self.console.print(f"[bold white]Audit Scope:[/bold white]    [bold cyan]{mode_label}[/bold cyan]\n")
 
         spec = SpecParser(self.root_dir).parse()
-        self.console.print("[dim]Evaluating evidence across Requirements, Quality, Security, and Architecture...[/dim]")
+        self.console.print("[dim]Evaluating evidence across Requirements, Quality, Security, and Architecture...[/dim]\n")
 
-        res = self.engine.run_review_loop(spec=spec)
+        def on_progress(idx: int, total: int, pkg_id: str, title: str, rep: Optional[ReviewReport]):
+            if rep is None:
+                self.console.print(f"  [cyan]➜[/cyan] [bold white][{idx}/{total}][/bold white] Auditing [bold yellow]{title}[/bold yellow]...")
+            else:
+                score_col = "green" if rep.score >= 85 else ("yellow" if rep.score >= 70 else "red")
+                self.console.print(f"    [{score_col}]✓[/{score_col}] Score: [{score_col}]{rep.score:.1f}/100[/{score_col}] · Verdict: {rep.verdict.upper()} ({len(rep.findings)} findings)\n")
+
+        res = self.engine.run_review_loop(spec=spec, progress_callback=on_progress)
         report: ReviewReport = res["report"]
 
         # Report Header Table

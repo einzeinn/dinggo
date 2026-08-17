@@ -1,6 +1,7 @@
 """Review Package Builder for Dinggo Product Factory."""
 import os
 import re
+from collections import defaultdict
 from typing import List, Dict, Any, Optional
 
 from core.reviewer.models import ReviewPackage, ReviewLevel, ReviewMode, ContextRequest
@@ -24,17 +25,35 @@ class ReviewPackageBuilder:
         level: ReviewLevel = ReviewLevel.LEVEL_1_REQUIREMENT
     ) -> List[ReviewPackage]:
         """
-        Generates targeted Review Packages scoped to individual traceable requirements.
+        Generates targeted Review Packages grouped by domain module or component.
         """
         packages: List[ReviewPackage] = []
         all_files = self._scan_repo_files()
 
         if spec and spec.requirements:
-            for idx, req in enumerate(spec.requirements, start=1):
-                # 1. Map target files from Task Graph or heuristic file resolution
-                target_files = self._resolve_target_files_for_requirement(req, task_graph, all_files)
-                
-                # 2. Read contents of target files
+            # Group requirements by prefix / domain (e.g. AUTH, TASK, FILTER, SEC, STAT)
+            grouped_reqs = defaultdict(list)
+            for req in spec.requirements:
+                prefix = req.id.split("-")[0].strip().upper() if "-" in req.id else "CORE"
+                grouped_reqs[prefix].append(req)
+
+            pkg_idx = 1
+            for group_key, reqs in grouped_reqs.items():
+                combined_target_files = set()
+                combined_acceptance = []
+                combined_deps = set()
+                combined_tests = set()
+
+                for req in reqs:
+                    tf_list = self._resolve_target_files_for_requirement(req, task_graph, all_files)
+                    combined_target_files.update(tf_list)
+                    combined_acceptance.extend(req.acceptance_criteria)
+                    combined_deps.update(self._extract_relevant_dependencies(req, spec))
+                    combined_tests.update(self._find_relevant_tests(req, tf_list, all_files))
+
+                target_files = sorted(list(combined_target_files))[:8]
+
+                # Read contents of target files
                 file_contents = {}
                 for tf in target_files:
                     abs_path = os.path.join(self.root_dir, tf)
@@ -45,10 +64,7 @@ class ReviewPackageBuilder:
                         except Exception:
                             pass
 
-                # 3. Find relevant test files
-                relevant_tests = self._find_relevant_tests(req, target_files, all_files)
-                
-                # 4. Extract test results from state if available
+                # Extract test results from state if available
                 test_results = {}
                 if state and hasattr(state, "stats"):
                     total = getattr(state.stats, "tests_total", 0)
@@ -62,10 +78,6 @@ class ReviewPackageBuilder:
                 else:
                     test_results = {"status": "NOT_EXECUTED"}
 
-                # 5. Extract relevant dependencies
-                deps = self._extract_relevant_dependencies(req, spec)
-
-                # 6. Architecture metadata
                 arch_meta = {}
                 if spec and spec.architecture:
                     arch_meta = {
@@ -74,24 +86,29 @@ class ReviewPackageBuilder:
                         "database": getattr(spec.architecture, "database", None)
                     }
 
+                req_ids_str = ", ".join(r.id for r in reqs)
+                group_title = f"{group_key} Module ({len(reqs)} requirements)"
+
                 pkg = ReviewPackage(
-                    package_id=f"PKG-{idx:03d}",
+                    package_id=f"PKG-{pkg_idx:03d}",
                     level=level,
                     mode=ReviewMode.TARGETED,
-                    requirement_id=req.id,
-                    requirement_title=req.title,
-                    requirement_description=req.description,
-                    acceptance_criteria=req.acceptance_criteria,
+                    requirements=reqs,
+                    requirement_id=req_ids_str,
+                    requirement_title=group_title,
+                    requirement_description=f"Traceable audit for {group_key} requirements: {req_ids_str}",
+                    acceptance_criteria=combined_acceptance[:10],
                     target_files=target_files,
                     changed_files=target_files,
                     file_contents=file_contents,
-                    relevant_tests=relevant_tests,
+                    relevant_tests=sorted(list(combined_tests))[:4],
                     test_results=test_results,
-                    dependencies=deps,
+                    dependencies=sorted(list(combined_deps)),
                     architecture_metadata=arch_meta,
                     previous_findings=[]
                 )
                 packages.append(pkg)
+                pkg_idx += 1
 
         # Fallback if no requirements exist: create 1 targeted package per top-level module
         if not packages:

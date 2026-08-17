@@ -38,7 +38,11 @@ class ReviewEngine:
         self.level = level
         self.package_builder = ReviewPackageBuilder(self.root_dir)
 
-    def execute_audit(self, spec: Optional[ProductSpec] = None) -> ReviewReport:
+    def execute_audit(
+        self,
+        spec: Optional[ProductSpec] = None,
+        progress_callback: Optional[Callable[[int, int, str, str, Optional[ReviewReport]], None]] = None
+    ) -> ReviewReport:
         """
         Executes a single audit pass across scoped Review Packages with interactive context retrieval.
         """
@@ -49,15 +53,21 @@ class ReviewEngine:
                 state=self.state_mgr.state,
                 level=self.level
             )
-            return self._audit_packages(packages, spec=spec)
+            return self._audit_packages(packages, spec=spec, progress_callback=progress_callback)
         else:
             full_pkg = self.package_builder.build_full_package(spec=spec)
-            return self._audit_single_package_with_investigation(full_pkg, spec=spec)
+            if progress_callback:
+                progress_callback(1, 1, full_pkg.package_id, full_pkg.requirement_title or "Full Repository", None)
+            rep = self._audit_single_package_with_investigation(full_pkg, spec=spec)
+            if progress_callback:
+                progress_callback(1, 1, full_pkg.package_id, full_pkg.requirement_title or "Full Repository", rep)
+            return rep
 
     def run_review_loop(
         self,
         spec: Optional[ProductSpec] = None,
-        custom_fix_func: Optional[Callable[[ReviewReport, int], bool]] = None
+        custom_fix_func: Optional[Callable[[ReviewReport, int], bool]] = None,
+        progress_callback: Optional[Callable[[int, int, str, str, Optional[ReviewReport]], None]] = None
     ) -> Dict[str, Any]:
         """
         Executes independent review and automatic repair cycles if critical/high findings exist.
@@ -72,7 +82,7 @@ class ReviewEngine:
 
         while cycle <= self.max_cycles:
             self.state_mgr.state.session.review_cycle = cycle
-            report = self.execute_audit(spec=spec)
+            report = self.execute_audit(spec=spec, progress_callback=progress_callback)
 
             if report.verdict == "approved":
                 self.state_mgr.transition_to(
@@ -103,7 +113,7 @@ class ReviewEngine:
             cycle += 1
 
         # Final audit pass after max cycles reached
-        final_report = self.execute_audit(spec=spec)
+        final_report = self.execute_audit(spec=spec, progress_callback=progress_callback)
         success = final_report.verdict == "approved"
         if success:
             self.state_mgr.transition_to(PipelinePhase.COMPLETED, PipelineStatus.SUCCESS, "Independent audit approved after repair cycles")
@@ -121,7 +131,12 @@ class ReviewEngine:
             "report": final_report
         }
 
-    def _audit_packages(self, packages: List[ReviewPackage], spec: Optional[ProductSpec] = None) -> ReviewReport:
+    def _audit_packages(
+        self,
+        packages: List[ReviewPackage],
+        spec: Optional[ProductSpec] = None,
+        progress_callback: Optional[Callable[[int, int, str, str, Optional[ReviewReport]], None]] = None
+    ) -> ReviewReport:
         """
         Audits a list of targeted ReviewPackages sequentially, aggregating findings and score.
         """
@@ -129,12 +144,21 @@ class ReviewEngine:
         auditor_name = getattr(self.adapter, "name", "Independent Auditor")
         context_reqs: List[ContextRequest] = []
         pkg_reports: List[ReviewReport] = []
-        for pkg in packages:
+
+        total_pkgs = len(packages)
+        for idx, pkg in enumerate(packages, start=1):
+            pkg_title = pkg.requirement_title or pkg.requirement_id or "Module"
+            if progress_callback:
+                progress_callback(idx, total_pkgs, pkg.package_id, pkg_title, None)
+
             pkg_report = self._audit_single_package_with_investigation(pkg, spec=spec)
             pkg_reports.append(pkg_report)
             auditor_name = pkg_report.auditor
             all_findings.extend(pkg_report.findings)
             context_reqs.extend(pkg_report.context_requests)
+
+            if progress_callback:
+                progress_callback(idx, total_pkgs, pkg.package_id, pkg_title, pkg_report)
 
         # Calculate overall aggregated score and verdict
         if pkg_reports:

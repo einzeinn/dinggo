@@ -69,8 +69,23 @@ def build_package_prompt(package: ReviewPackage) -> str:
     """Builds a targeted, scoped prompt from a ReviewPackage."""
     prompt = "## INDEPENDENT CODE AUDIT: SCOPED REVIEW PACKAGE\n\n"
     prompt += f"**Package ID:** `{package.package_id}` (Scope: `{package.level.value.upper()}`)\n"
-    
-    if package.requirement_id:
+    if package.requirement_title:
+        prompt += f"**Module / Target:** {package.requirement_title}\n\n"
+
+    if package.requirements:
+        prompt += f"### Target Traceable Requirements ({len(package.requirements)}):\n"
+        for req in package.requirements:
+            r_title = getattr(req, "title", str(req))
+            r_id = getattr(req, "id", "REQ")
+            r_desc = getattr(req, "description", "")
+            r_ac = getattr(req, "acceptance_criteria", [])
+            prompt += f"- **[{r_id}] {r_title}**\n"
+            if r_desc:
+                prompt += f"  * Description: {r_desc}\n"
+            if r_ac:
+                prompt += f"  * Criteria: {', '.join(r_ac[:4])}\n"
+        prompt += "\n"
+    elif package.requirement_id:
         prompt += f"### Target Traceable Requirement: [{package.requirement_id}] {package.requirement_title or ''}\n"
         if package.requirement_description:
             prompt += f"**Description:** {package.requirement_description}\n"
@@ -110,7 +125,7 @@ def build_package_prompt(package: ReviewPackage) -> str:
 
     prompt += (
         "### Auditor Instructions:\n"
-        "1. Verify if the code truly satisfies the requirement and acceptance criteria.\n"
+        "1. Verify if the code truly satisfies the requirements and acceptance criteria.\n"
         "2. Detect any stub, mock return, unauthenticated bypass, or dangerous logic.\n"
         "3. If you need to inspect an imported helper module, emit a `context_request`.\n"
         "4. Otherwise, provide the JSON ReviewReport with score, verdict, and concrete evidence."
@@ -610,7 +625,7 @@ class CodexReviewerAdapter(BaseReviewerAdapter):
                     "response_format": {"type": "json_object"},
                     "temperature": 0.1
                 }
-                with httpx.Client(timeout=120.0) as client:
+                with httpx.Client(timeout=httpx.Timeout(20.0, connect=5.0)) as client:
                     resp = client.post(f"{self.base_url}/chat/completions", headers=headers, json=payload)
                     if resp.status_code == 200:
                         data = resp.json()
@@ -627,7 +642,7 @@ class CodexReviewerAdapter(BaseReviewerAdapter):
         if self.cli_path:
             try:
                 cmd = [self.cli_path, "exec", "--skip-git-repo-check", "-"]
-                proc = subprocess.run(cmd, input=prompt, capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=120, cwd=root_dir)
+                proc = subprocess.run(cmd, input=prompt, capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=30, cwd=root_dir)
                 if proc.returncode == 0 and proc.stdout:
                     return parse_review_response(proc.stdout, default_auditor=f"Codex CLI ({os.path.basename(self.cli_path)})")
                 else:
@@ -678,7 +693,7 @@ class ClaudeReviewerAdapter(BaseReviewerAdapter):
                     "max_tokens": 4096,
                     "temperature": 0.1
                 }
-                with httpx.Client(timeout=120.0) as client:
+                with httpx.Client(timeout=httpx.Timeout(20.0, connect=5.0)) as client:
                     resp = client.post("https://api.anthropic.com/v1/messages", headers=headers, json=payload)
                     if resp.status_code == 200:
                         data = resp.json()
@@ -696,7 +711,7 @@ class ClaudeReviewerAdapter(BaseReviewerAdapter):
         if self.cli_path:
             try:
                 cmd = [self.cli_path, "-p", "-", "--output-format", "json"]
-                proc = subprocess.run(cmd, input=prompt, capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=120, cwd=root_dir)
+                proc = subprocess.run(cmd, input=prompt, capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=30, cwd=root_dir)
                 if proc.returncode == 0 and proc.stdout:
                     return parse_review_response(proc.stdout, default_auditor=f"Claude Code CLI ({os.path.basename(self.cli_path)})")
                 else:
@@ -746,7 +761,7 @@ class AgyReviewerAdapter(BaseReviewerAdapter):
                         "temperature": 0.1
                     }
                 }
-                with httpx.Client(timeout=120.0) as client:
+                with httpx.Client(timeout=httpx.Timeout(20.0, connect=5.0)) as client:
                     resp = client.post(url, json=payload)
                     if resp.status_code == 200:
                         data = resp.json()
@@ -767,7 +782,7 @@ class AgyReviewerAdapter(BaseReviewerAdapter):
         if self.cli_path:
             try:
                 cmd = [self.cli_path, "--print", "-", "--output-format", "json"]
-                proc = subprocess.run(cmd, input=prompt, capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=120, cwd=root_dir)
+                proc = subprocess.run(cmd, input=prompt, capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=30, cwd=root_dir)
                 if proc.returncode == 0 and proc.stdout:
                     return parse_review_response(proc.stdout, default_auditor=f"Antigravity CLI ({os.path.basename(self.cli_path)})")
                 else:

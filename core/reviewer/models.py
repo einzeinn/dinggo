@@ -48,6 +48,7 @@ class ReviewPackage(BaseModel):
     package_id: str = "PKG-001"
     level: ReviewLevel = ReviewLevel.LEVEL_1_REQUIREMENT
     mode: ReviewMode = ReviewMode.TARGETED
+    requirements: List[Any] = Field(default_factory=list, description="List of RequirementItems in this package")
     requirement_id: Optional[str] = None
     requirement_title: Optional[str] = None
     requirement_description: Optional[str] = None
