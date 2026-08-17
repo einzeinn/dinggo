@@ -11,6 +11,10 @@ class SpecGenerator:
         self.spec_dir = os.path.join(self.root_dir, "spec")
         self.config_path = os.path.join(self.root_dir, "dinggo.yaml")
 
+    def generate_defaults(self, project_name: Optional[str] = None, force: bool = False) -> Dict[str, str]:
+        """Alias for initialize_spec_directory."""
+        return self.initialize_spec_directory(project_name=project_name, force=force)
+
     def initialize_spec_directory(self, project_name: Optional[str] = None, force: bool = False) -> Dict[str, str]:
         """Create spec/ directory with default template files."""
         os.makedirs(self.spec_dir, exist_ok=True)

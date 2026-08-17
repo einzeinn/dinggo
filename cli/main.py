@@ -16,22 +16,82 @@ def main():
     """Main CLI entrypoint for Dinggo."""
     working_dir = os.getcwd()
 
-    # Route interface / wizard subcommands
+    # Route interface, wizard, and direct subcommands
     if len(sys.argv) > 1:
         cmd = sys.argv[1].lower().strip()
+        args = sys.argv[2:]
+        target_dir = args[0] if args and not args[0].startswith("-") else working_dir
+        non_interactive = any(flag in sys.argv for flag in ("--non-interactive", "--ci", "-y"))
+        auto_approve = any(flag in sys.argv for flag in ("--auto-approve", "--yes", "-y"))
+
         if cmd in ("interface", "tui", "menu", "factory"):
             from cli.interface import ProductFactoryInterface
-            interface = ProductFactoryInterface(working_dir)
+            interface = ProductFactoryInterface(target_dir)
             interface.start()
             return
-        elif cmd in ("wizard", "init"):
+        elif cmd == "wizard":
             from cli.wizard import ProductFactoryWizard
-            wizard = ProductFactoryWizard(working_dir)
+            wizard = ProductFactoryWizard(target_dir, non_interactive=non_interactive)
             wizard.run()
             return
+        elif cmd == "init":
+            from core.spec.generator import SpecGenerator
+            from core.detector import ProjectDetector
+            from rich.console import Console
+            proj_name = os.path.basename(os.path.abspath(target_dir))
+            gen = SpecGenerator(target_dir)
+            files = gen.generate_defaults(proj_name)
+            console.print(f"[bold green]✓ Initialized {len(files)} specification files in spec/ & dinggo.yaml[/bold green]")
+            return
+        elif cmd == "plan":
+            from core.spec.parser import SpecParser
+            from core.planner.planner_engine import Planner
+            from rich.console import Console
+            console = Console()
+            spec = SpecParser(target_dir).parse()
+            planner = Planner()
+            res = planner.create_product_task_graph(spec)
+            console.print(f"[bold green]✓ Plan Generated: {len(res['graph'].tasks)} tasks across DAG[/bold green]")
+            return
+        elif cmd == "build":
+            from core.factory import ProductFactoryPipeline
+            pipeline = ProductFactoryPipeline(target_dir, non_interactive=non_interactive)
+            success = pipeline.run_pipeline(auto_approve=auto_approve)
+            sys.exit(0 if success else 1)
+        elif cmd == "test":
+            from core.repair.repair_engine import RepairEngine
+            from rich.console import Console
+            console = Console()
+            engine = RepairEngine(target_dir)
+            res = engine.run_repair_loop()
+            console.print(f"[bold green]✓ Testing & Repair finished (Success: {res['success']}, Attempts: {res.get('attempts', 1)})[/bold green]")
+            sys.exit(0 if res["success"] else 1)
+        elif cmd == "review":
+            from cli.review_view import ReviewDashboard
+            dashboard = ReviewDashboard(target_dir)
+            report = dashboard.display_and_run()
+            sys.exit(0 if report.verdict == "approved" else 1)
+        elif cmd == "status":
+            from core.state.state_manager import StateManager
+            from rich.console import Console
+            console = Console()
+            mgr = StateManager(target_dir)
+            s = mgr.state
+            console.print(f"[bold cyan]Project:[/bold cyan] {s.project_name} | [bold yellow]Phase:[/bold yellow] {s.phase.value} | [bold green]Status:[/bold green] {s.status.value}")
+            return
+        elif cmd == "resume":
+            from core.state.state_manager import StateManager
+            from core.factory import ProductFactoryPipeline
+            mgr = StateManager(target_dir)
+            if not mgr.can_resume():
+                print("No resumable session found.")
+                sys.exit(1)
+            pipeline = ProductFactoryPipeline(target_dir, state_manager=mgr, non_interactive=non_interactive)
+            success = pipeline.run_pipeline(auto_approve=auto_approve)
+            sys.exit(0 if success else 1)
         elif cmd in ("settings", "config"):
             from cli.settings_view import SettingsView
-            settings = SettingsView(working_dir)
+            settings = SettingsView(target_dir)
             settings.display_menu()
             return
 

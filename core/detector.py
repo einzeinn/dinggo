@@ -12,6 +12,10 @@ class ProjectDetector:
     def __init__(self, root_dir: str = "."):
         self.root_dir = os.path.abspath(root_dir)
 
+    def detect(self) -> Dict[str, Any]:
+        """Alias for detect_project."""
+        return self.detect_project()
+
     def detect_all(self) -> Dict[str, Any]:
         """Perform comprehensive environment and stack detection."""
         return {

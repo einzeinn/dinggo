@@ -27,6 +27,10 @@ class SpecParser:
         with os.scandir(self.spec_dir) as it:
             return any(it)
 
+    def has_specs(self) -> bool:
+        """Alias for spec_exists."""
+        return self.spec_exists()
+
     def load_config(self) -> DinggoConfig:
         """Load dinggo.yaml configuration if present, otherwise default."""
         if os.path.isfile(self.config_path):
