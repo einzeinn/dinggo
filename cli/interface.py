@@ -59,17 +59,14 @@ class ProductFactoryInterface:
         proj = detection.get("project", {})
         providers = detection.get("providers", {})
 
-        git_icon = "[green]✓[/green]" if proj.get("is_git") else "[dim]✗[/dim]"
-        spec_icon = "[green]✓[/green]" if proj.get("has_spec") else "[dim]✗[/dim]"
-        ctx_icon = "[green]✓[/green]" if proj.get("has_contextix") else "[dim]✗[/dim]"
-        prov_icon = "[green]✓[/green]" if any(providers.values()) else "[yellow]![/yellow]"
-        build_icon = "[green]✓[/green]" if proj.get("build_system") or proj.get("manifests") else "[dim]✗[/dim]"
-        test_icon = "[green]✓[/green]" if proj.get("test_framework") or os.path.isdir(os.path.join(self.root_dir, "tests")) else "[dim]✗[/dim]"
+        active_prov_names = [info["name"] for info in providers.values() if info.get("available")]
+        prov_desc = f"AI providers [bold white]({', '.join(active_prov_names)})[/bold white]" if active_prov_names else "AI providers"
+        prov_icon = "[green]✓[/green]" if active_prov_names else "[yellow]![/yellow]"
 
         self.console.print(f"  {git_icon} Git repository")
         self.console.print(f"  {spec_icon} Project specification (`spec/`)")
         self.console.print(f"  {ctx_icon} Contextix memory (`.context/`)")
-        self.console.print(f"  {prov_icon} AI providers")
+        self.console.print(f"  {prov_icon} {prov_desc}")
         self.console.print(f"  {build_icon} Build system")
         self.console.print(f"  {test_icon} Test system\n")
         self.console.print("[dim]Loading project interface...[/dim]\n")

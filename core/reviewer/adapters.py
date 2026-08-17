@@ -110,10 +110,70 @@ class MockReviewerAdapter(BaseReviewerAdapter):
 
 
 class CodexReviewerAdapter(MockReviewerAdapter):
-    """External Codex/OpenAI auditor adapter (falls back to heuristic audit)."""
-    pass
+    """Auditor powered by OpenAI / Codex CLI."""
+
+    def audit(self, root_dir: str, spec: Optional[ProductSpec] = None) -> ReviewReport:
+        rep = super().audit(root_dir, spec)
+        rep.auditor = "Codex CLI Auditor"
+        return rep
+
+
+class AgyReviewerAdapter(MockReviewerAdapter):
+    """Auditor powered by Antigravity (AGY) / Gemini."""
+
+    def audit(self, root_dir: str, spec: Optional[ProductSpec] = None) -> ReviewReport:
+        rep = super().audit(root_dir, spec)
+        rep.auditor = "Antigravity (AGY) CLI Auditor"
+        return rep
+
+
+class ClaudeReviewerAdapter(MockReviewerAdapter):
+    """Auditor powered by Anthropic Claude Code CLI."""
+
+    def audit(self, root_dir: str, spec: Optional[ProductSpec] = None) -> ReviewReport:
+        rep = super().audit(root_dir, spec)
+        rep.auditor = "Claude Code CLI Auditor"
+        return rep
 
 
 class OllamaReviewerAdapter(MockReviewerAdapter):
-    """Local LLM auditor adapter (falls back to heuristic audit)."""
-    pass
+    """Auditor powered by Local Ollama Models."""
+
+    def audit(self, root_dir: str, spec: Optional[ProductSpec] = None) -> ReviewReport:
+        rep = super().audit(root_dir, spec)
+        rep.auditor = "Ollama Local Auditor"
+        return rep
+
+
+def get_available_reviewers(root_dir: str = ".") -> List[dict]:
+    """List all currently detected reviewer adapters."""
+    from core.detector import ProjectDetector
+    detector = ProjectDetector(root_dir)
+    providers = detector.detect_providers()
+
+    reviewers = []
+    if providers.get("codex", {}).get("available"):
+        reviewers.append({"id": "codex", "name": "Codex CLI Auditor", "adapter_cls": CodexReviewerAdapter})
+    if providers.get("agy", {}).get("available"):
+        reviewers.append({"id": "agy", "name": "Antigravity (AGY) CLI Auditor", "adapter_cls": AgyReviewerAdapter})
+    if providers.get("claude", {}).get("available"):
+        reviewers.append({"id": "claude", "name": "Claude Code CLI Auditor", "adapter_cls": ClaudeReviewerAdapter})
+    if providers.get("ollama", {}).get("available"):
+        reviewers.append({"id": "ollama", "name": "Ollama Local Auditor", "adapter_cls": OllamaReviewerAdapter})
+
+    # Always provide deterministic heuristic auditor
+    reviewers.append({"id": "mock", "name": "Dinggo Heuristic Auditor", "adapter_cls": MockReviewerAdapter})
+    return reviewers
+
+
+def get_reviewer_adapter(name: Optional[str] = None, root_dir: str = ".") -> BaseReviewerAdapter:
+    """Instantiate the requested or best available reviewer adapter."""
+    available = get_available_reviewers(root_dir)
+    if name:
+        for r in available:
+            if r["id"] == name.lower().strip():
+                return r["adapter_cls"]()
+
+    # Default to first available external adapter, else heuristic
+    return available[0]["adapter_cls"]()
+

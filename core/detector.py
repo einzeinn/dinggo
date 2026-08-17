@@ -108,12 +108,70 @@ class ProjectDetector:
         }
 
     def detect_providers(self) -> Dict[str, Any]:
-        """Detect local and CLI AI providers."""
+        """Detect local and CLI AI providers with multi-path resolution on Windows and POSIX."""
+        home = os.path.expanduser("~")
+        npm_dir = os.path.join(home, "AppData", "Roaming", "npm")
+        local_appdata = os.path.join(home, "AppData", "Local")
+
+        # 1. Codex CLI / API
+        codex_bin = (
+            shutil.which("codex")
+            or shutil.which("codex.cmd")
+            or shutil.which("codex.exe")
+            or (os.path.isfile(os.path.join(npm_dir, "codex.cmd")) and os.path.join(npm_dir, "codex.cmd"))
+            or (os.path.isfile(os.path.join(npm_dir, "codex")) and os.path.join(npm_dir, "codex"))
+        )
+        has_codex_auth = bool(os.getenv("OPENAI_API_KEY") or os.getenv("CODEX_API_KEY") or codex_bin)
+        
+        # 2. Claude Code CLI / API
+        claude_bin = (
+            shutil.which("claude")
+            or shutil.which("claude.cmd")
+            or shutil.which("claude.exe")
+            or shutil.which("claude-code")
+            or shutil.which("claude-code.cmd")
+            or (os.path.isfile(os.path.join(npm_dir, "claude.cmd")) and os.path.join(npm_dir, "claude.cmd"))
+            or (os.path.isdir(os.path.join(local_appdata, "claude-cli-nodejs")) and os.path.join(local_appdata, "claude-cli-nodejs"))
+        )
+        has_claude_auth = bool(os.getenv("ANTHROPIC_API_KEY") or os.getenv("CLAUDE_API_KEY") or claude_bin)
+
+        # 3. Antigravity / AGY CLI / Gemini
+        agy_bin = (
+            shutil.which("agy")
+            or shutil.which("agy.exe")
+            or shutil.which("agy.cmd")
+            or shutil.which("antigravity")
+            or shutil.which("gemini")
+            or (os.path.isfile(os.path.join(local_appdata, "agy", "bin", "agy.exe")) and os.path.join(local_appdata, "agy", "bin", "agy.exe"))
+            or (os.path.isfile(os.path.join(home, ".gemini", "antigravity-ide", "bin", "agy.exe")) and os.path.join(home, ".gemini", "antigravity-ide", "bin", "agy.exe"))
+        )
+        has_agy_auth = bool(os.getenv("GEMINI_API_KEY") or agy_bin)
+
         providers = {
-            "codex": {"name": "Codex CLI", "available": bool(shutil.which("codex")), "type": "cli"},
-            "claude": {"name": "Claude CLI", "available": bool(shutil.which("claude")), "type": "cli"},
-            "gemini": {"name": "Gemini / Antigravity CLI", "available": bool(shutil.which("gemini") or shutil.which("agy")), "type": "cli"},
-            "ollama": {"name": "Ollama (Local Server)", "available": False, "models": [], "type": "local_server"}
+            "codex": {
+                "name": "Codex CLI",
+                "available": bool(codex_bin or has_codex_auth),
+                "path": codex_bin if isinstance(codex_bin, str) else None,
+                "type": "cli"
+            },
+            "agy": {
+                "name": "Antigravity (AGY) CLI",
+                "available": bool(agy_bin or has_agy_auth),
+                "path": agy_bin if isinstance(agy_bin, str) else None,
+                "type": "cli"
+            },
+            "claude": {
+                "name": "Claude Code CLI",
+                "available": bool(claude_bin or has_claude_auth),
+                "path": claude_bin if isinstance(claude_bin, str) else None,
+                "type": "cli"
+            },
+            "ollama": {
+                "name": "Ollama (Local Server)",
+                "available": False,
+                "models": [],
+                "type": "local_server"
+            }
         }
 
         # Check Ollama HTTP server
@@ -127,6 +185,6 @@ class ProjectDetector:
                     providers["ollama"]["available"] = True
                     providers["ollama"]["models"] = models
         except Exception:
-            providers["ollama"]["available"] = False
+            providers["ollama"]["available"] = bool(shutil.which("ollama"))
 
         return providers

@@ -11,6 +11,7 @@ if hasattr(sys.stdout, "reconfigure"):
     except Exception:
         pass
 
+from core.reviewer.adapters import get_reviewer_adapter, get_available_reviewers
 from core.reviewer.models import ReviewReport, ReviewSeverity
 from core.reviewer.review_engine import ReviewEngine
 from core.spec.parser import SpecParser
@@ -20,17 +21,24 @@ from core.state.state_manager import StateManager
 class ReviewDashboard:
     """Renders 4-quadrant code audit reports and findings."""
 
-    def __init__(self, root_dir: str = ".", console: Optional[Console] = None, state_manager: Optional[StateManager] = None):
+    def __init__(self, root_dir: str = ".", console: Optional[Console] = None, state_manager: Optional[StateManager] = None, adapter_name: Optional[str] = None):
         self.root_dir = root_dir
         self.console = console or Console()
         self.state_mgr = state_manager or StateManager(self.root_dir)
-        self.engine = ReviewEngine(self.root_dir, state_manager=self.state_mgr)
+        adapter = get_reviewer_adapter(adapter_name, root_dir=self.root_dir)
+        self.engine = ReviewEngine(self.root_dir, state_manager=self.state_mgr, adapter=adapter)
 
     def display_and_run(self) -> ReviewReport:
         """Executes independent audit and displays results in formatted TUI."""
         self.console.print("\n[bold magenta]══════════════════════════════════════════════════════════════[/bold magenta]")
         self.console.print("[bold bright_magenta]  🛡️  INDEPENDENT CODE AUDITOR & QUALITY REVIEW[/bold bright_magenta]")
         self.console.print("[bold magenta]══════════════════════════════════════════════════════════════[/bold magenta]\n")
+
+        available = get_available_reviewers(self.root_dir)
+        av_names = [r["name"] for r in available if r["id"] != "mock"]
+        if av_names:
+            self.console.print(f"[bold cyan]Detected Auditors:[/bold cyan] [green]{', '.join(av_names)}[/green]")
+        self.console.print(f"[bold white]Active Auditor:[/bold white] [bold yellow]{self.engine.adapter.__class__.__name__}[/bold yellow]\n")
 
         spec = SpecParser(self.root_dir).parse()
         self.console.print("[dim]Auditing codebase across Requirements, Quality, Security, and Architecture...[/dim]")

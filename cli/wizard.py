@@ -129,13 +129,15 @@ class ProductFactoryWizard:
         providers = self.detector.detect_providers()
 
         table = Table(show_header=True, header_style="bold cyan", border_style="dim")
-        table.add_column("Provider")
-        table.add_column("Type")
-        table.add_column("Status")
+        table.add_column("Provider", style="bold white", width=26)
+        table.add_column("Type", style="cyan", width=16)
+        table.add_column("Status", width=16)
+        table.add_column("Details", style="dim")
 
         for key, info in providers.items():
             status = "[green]✓ Ready[/green]" if info.get("available") else "[dim red]✗ Not Detected[/dim red]"
-            table.add_row(info["name"], info["type"], status)
+            details = info.get("path") or (f"Models: {', '.join(info.get('models', []))}" if info.get("models") else "")
+            table.add_row(info["name"], info["type"], status, details or "")
 
         self.console.print(table)
 
