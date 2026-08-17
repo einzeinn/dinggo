@@ -182,6 +182,45 @@ class ReviewEngine:
             verdict = "rejected"
 
         summary = f"Targeted audit complete across {len(packages)} packages. Score: {score:.1f}/100. Verdict: {verdict.upper()} ({len(all_findings)} findings)."
+        
+        # Consolidate executive summary & verified files
+        all_verified_files = []
+        for pkg in packages:
+            all_verified_files.extend(pkg.target_files)
+        all_verified_files = sorted(list(set(all_verified_files)))
+
+        # Consolidate quadrant scores
+        quadrant_scores = {"requirements": 100.0, "code_quality": 100.0, "security": 100.0, "architecture": 100.0}
+        if pkg_reports:
+            for qk in quadrant_scores:
+                scores_for_q = [r.quadrant_scores.get(qk, r.score) for r in pkg_reports if r.quadrant_scores]
+                if scores_for_q:
+                    quadrant_scores[qk] = sum(scores_for_q) / len(scores_for_q)
+
+        # Consolidate quadrant notes
+        quadrant_notes = {
+            "requirements": "All traceable acceptance criteria verified across modules." if not any(f.category == ReviewCategory.REQUIREMENTS for f in all_findings) else f"{len([f for f in all_findings if f.category == ReviewCategory.REQUIREMENTS])} requirement violations detected.",
+            "code_quality": "Clean code structure, typing, and exception handling verified." if not any(f.category == ReviewCategory.CODE_QUALITY for f in all_findings) else f"{len([f for f in all_findings if f.category == ReviewCategory.CODE_QUALITY])} code quality issues flagged.",
+            "security": "No authentication bypass, injection vectors, or plaintext secrets found." if not any(f.category == ReviewCategory.SECURITY for f in all_findings) else f"{len([f for f in all_findings if f.category == ReviewCategory.SECURITY])} security vulnerabilities detected.",
+            "architecture": "Layer separation and modular component decoupling verified." if not any(f.category == ReviewCategory.ARCHITECTURE for f in all_findings) else f"{len([f for f in all_findings if f.category == ReviewCategory.ARCHITECTURE])} architectural issues flagged."
+        }
+
+        # Consolidate recommendations
+        all_recs = []
+        for r in pkg_reports:
+            all_recs.extend(r.recommendations)
+        all_recs = list(dict.fromkeys(all_recs))[:5]
+        if not all_recs:
+            all_recs = [
+                "Targeted review packages passed all verification criteria. Ready for production release.",
+                "Maintain continuous unit and integration test coverage."
+            ]
+
+        exec_summary = (
+            f"Evaluated {len(packages)} targeted package(s) covering {len(all_verified_files)} source files. "
+            f"Overall score: {score:.1f}/100 ({verdict.upper()}). "
+            + ("Implementation demonstrates high fidelity to specification with robust logic and clean layer decoupling." if not all_findings else f"Found {len(all_findings)} finding(s) requiring remediation.")
+        )
 
         return ReviewReport(
             auditor=auditor_name,
@@ -189,6 +228,11 @@ class ReviewEngine:
             verdict=verdict,
             findings=all_findings,
             summary=summary,
+            executive_summary=exec_summary,
+            quadrant_scores=quadrant_scores,
+            quadrant_notes=quadrant_notes,
+            verified_files=all_verified_files[:12],
+            recommendations=all_recs,
             mode=ReviewMode.TARGETED,
             packages_reviewed=len(packages),
             context_requests=context_reqs

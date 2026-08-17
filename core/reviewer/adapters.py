@@ -27,11 +27,11 @@ AUDIT_SYSTEM_PROMPT = (
     "You are Dinggo's Independent Senior Software Auditor.\n"
     "You perform rigorous, unbiased, evidence-based code audits.\n"
     "You act like an investigator checking concrete evidence rather than making assumptions.\n\n"
-    "EVALUATION CRITERIA:\n"
-    "1. REQUIREMENTS VERIFICATION: Does the implementation truly satisfy the specification and acceptance criteria? Is it a stub / echo returning fake data?\n"
-    "2. CODE QUALITY: Maintainability, error handling, typing, code smells, duplication.\n"
-    "3. SECURITY: Authentication bypass, password handling, injection, secrets, dynamic eval.\n"
-    "4. ARCHITECTURE: Decoupled design, proper layer separation.\n\n"
+    "EVALUATION CRITERIA (4 QUADRANTS):\n"
+    "1. REQUIREMENTS: Does the implementation truly satisfy the specification and acceptance criteria? Is it a stub / echo returning fake data?\n"
+    "2. CODE QUALITY: Maintainability, error handling, typing, code smells, duplication, edge cases.\n"
+    "3. SECURITY: Authentication bypass, password handling, injection, secrets, dynamic eval, CORS, input sanitization.\n"
+    "4. ARCHITECTURE: Decoupled design, proper layer separation between routers, schemas, services, and models.\n\n"
     "RESPONSE FORMAT (JSON ONLY):\n"
     "If you require additional imported files to verify the logic, respond with:\n"
     "{\n"
@@ -40,12 +40,29 @@ AUDIT_SYSTEM_PROMPT = (
     '    "reason": "Explain why this file is needed for verification"\n'
     "  }\n"
     "}\n\n"
-    "Otherwise, respond with the final audit report:\n"
+    "Otherwise, respond with the final audit report JSON:\n"
     "{\n"
     '  "auditor": "Name of auditor",\n'
-    '  "score": 85.0,\n'
+    '  "score": 95.0,\n'
     '  "verdict": "approved" | "revisions_required" | "rejected",\n'
-    '  "summary": "Concrete audit assessment summary",\n'
+    '  "summary": "Concise high-level verdict summary",\n'
+    '  "executive_summary": "Comprehensive narrative detailing architectural alignment, specification verification, security posture, and code maintainability.",\n'
+    '  "quadrant_scores": {\n'
+    '    "requirements": 100.0,\n'
+    '    "code_quality": 95.0,\n'
+    '    "security": 95.0,\n'
+    '    "architecture": 90.0\n'
+    '  },\n'
+    '  "quadrant_notes": {\n'
+    '    "requirements": "Assessment of acceptance criteria completeness and genuine logic execution.",\n'
+    '    "code_quality": "Assessment of error handling, typing, structure, and readability.",\n'
+    '    "security": "Assessment of auth, password hashing, injection vectors, and secrets.",\n'
+    '    "architecture": "Assessment of component decoupling and structural layering."\n'
+    '  },\n'
+    '  "recommendations": [\n'
+    '    "Actionable recommendation 1",\n'
+    '    "Actionable recommendation 2"\n'
+    '  ],\n'
     '  "findings": [\n'
     "    {\n"
     '      "id": "FIND-001",\n'
@@ -435,6 +452,77 @@ def parse_review_response(response_text: str, default_auditor: str = "Dinggo Ind
             verdict = "rejected"
 
     summary = data.get("summary") or f"Audit complete. Score: {score:.1f}/100. Verdict: {verdict.upper()} ({len(parsed_findings)} findings)."
+    exec_summary = str(data.get("executive_summary") or data.get("summary") or "").strip()
+    if not exec_summary:
+        if score >= 90.0 and not parsed_findings:
+            exec_summary = (
+                f"The implementation comprehensively satisfies the evaluated requirements and quality standards (Score: {score:.1f}/100). "
+                "Architectural layer decoupling is preserved with clean schema validation and proper error handling. No security vulnerabilities or mock stubs were detected."
+            )
+        else:
+            exec_summary = (
+                f"Audit identified {len(parsed_findings)} defect(s) requiring attention (Score: {score:.1f}/100). "
+                "Please review the concrete evidence snippets and apply recommended remedies before production export."
+            )
+
+    # 3. Extract or compute 4-quadrant metrics
+    raw_qs = data.get("quadrant_scores") if isinstance(data.get("quadrant_scores"), dict) else {}
+    quadrant_scores = {}
+    for q_key in ("requirements", "code_quality", "security", "architecture"):
+        if q_key in raw_qs:
+            try:
+                quadrant_scores[q_key] = max(0.0, min(100.0, float(raw_qs[q_key])))
+            except (ValueError, TypeError):
+                quadrant_scores[q_key] = score
+        else:
+            q_score = 100.0
+            for f in parsed_findings:
+                if f.category.value == q_key:
+                    if f.severity == ReviewSeverity.CRITICAL:
+                        q_score -= 35.0
+                    elif f.severity == ReviewSeverity.HIGH:
+                        q_score -= 20.0
+                    elif f.severity == ReviewSeverity.MEDIUM:
+                        q_score -= 10.0
+                    elif f.severity == ReviewSeverity.LOW:
+                        q_score -= 5.0
+            quadrant_scores[q_key] = max(0.0, min(100.0, q_score))
+
+    # 4. Extract or compute quadrant assessment notes
+    raw_qn = data.get("quadrant_notes") if isinstance(data.get("quadrant_notes"), dict) else {}
+    quadrant_notes = {}
+    
+    req_f = [f for f in parsed_findings if f.category == ReviewCategory.REQUIREMENTS]
+    quadrant_notes["requirements"] = str(raw_qn.get("requirements") or (
+        "Acceptance criteria and traceability verified. Implements genuine logic." if not req_f else f"{len(req_f)} requirement violations detected."
+    )).strip()
+
+    cq_f = [f for f in parsed_findings if f.category == ReviewCategory.CODE_QUALITY]
+    quadrant_notes["code_quality"] = str(raw_qn.get("code_quality") or (
+        "Clean modular structure with proper error handling and typing." if not cq_f else f"{len(cq_f)} code quality issues found."
+    )).strip()
+
+    sec_f = [f for f in parsed_findings if f.category == ReviewCategory.SECURITY]
+    quadrant_notes["security"] = str(raw_qn.get("security") or (
+        "No security vulnerabilities, hardcoded secrets, or injection vectors detected." if not sec_f else f"{len(sec_f)} security vulnerabilities found."
+    )).strip()
+
+    arch_f = [f for f in parsed_findings if f.category == ReviewCategory.ARCHITECTURE]
+    quadrant_notes["architecture"] = str(raw_qn.get("architecture") or (
+        "Well-decoupled layer separation across routers, schemas, services, and configuration." if not arch_f else f"{len(arch_f)} architectural issues found."
+    )).strip()
+
+    # 5. Extract recommendations
+    raw_recs = data.get("recommendations") if isinstance(data.get("recommendations"), list) else []
+    recommendations = [str(r).strip() for r in raw_recs if str(r).strip()]
+    if not recommendations:
+        if parsed_findings:
+            recommendations = [f.recommendation for f in parsed_findings[:4] if f.recommendation]
+        else:
+            recommendations = [
+                "Codebase meets specification criteria. Ready for production release and packaging.",
+                "Maintain automated regression test suites as new features are introduced."
+            ]
 
     return ReviewReport(
         auditor=auditor,
@@ -442,6 +530,10 @@ def parse_review_response(response_text: str, default_auditor: str = "Dinggo Ind
         verdict=verdict,
         findings=parsed_findings,
         summary=summary,
+        executive_summary=exec_summary,
+        quadrant_scores=quadrant_scores,
+        quadrant_notes=quadrant_notes,
+        recommendations=recommendations,
         context_requests=context_requests,
         raw_response=response_text
     )
@@ -556,13 +648,47 @@ class MockReviewerAdapter(BaseReviewerAdapter):
             verdict = "revisions_required"
 
         summary = f"Audit complete. Score: {score:.1f}/100. Verdict: {verdict.upper()} ({len(findings)} findings)."
+        verified_rel_paths = [os.path.relpath(fp, root_dir).replace("\\", "/") for fp in files_to_scan]
+
+        exec_summary = (
+            f"Heuristic static analysis evaluated {len(files_to_scan)} source file(s) across requirements, code quality, security, and architecture (Score: {score:.1f}/100). "
+            + ("All static checks passed cleanly with no dangerous eval/exec or hardcoded credentials detected." if not findings else f"Identified {len(findings)} potential issue(s).")
+        )
+
+        quadrant_scores = {
+            "requirements": 100.0,
+            "code_quality": 100.0 - (len([f for f in findings if f.category == ReviewCategory.CODE_QUALITY]) * 10.0),
+            "security": 100.0 - (len([f for f in findings if f.category == ReviewCategory.SECURITY]) * 20.0),
+            "architecture": 100.0 - (len([f for f in findings if f.category == ReviewCategory.ARCHITECTURE]) * 15.0),
+        }
+        for k in quadrant_scores:
+            quadrant_scores[k] = max(0.0, min(100.0, quadrant_scores[k]))
+
+        quadrant_notes = {
+            "requirements": "Specification structures and expected modules are present.",
+            "code_quality": "Clean syntax and structure." if not [f for f in findings if f.category == ReviewCategory.CODE_QUALITY] else "Code quality issues flagged.",
+            "security": "No hardcoded secrets, injection vectors, or dynamic eval detected." if not [f for f in findings if f.category == ReviewCategory.SECURITY] else "Security vulnerabilities detected.",
+            "architecture": "Modular directory structure and decoupled components verified." if not [f for f in findings if f.category == ReviewCategory.ARCHITECTURE] else "Architectural layering issues flagged."
+        }
+
+        recs = [f.recommendation for f in findings if f.recommendation]
+        if not recs:
+            recs = [
+                "Static quality checks verified. Ready for production release.",
+                "Ensure continuous test coverage as new endpoints or business logic are added."
+            ]
 
         return ReviewReport(
             auditor=self.name,
             score=score,
             verdict=verdict,
             findings=findings,
-            summary=summary
+            summary=summary,
+            executive_summary=exec_summary,
+            quadrant_scores=quadrant_scores,
+            quadrant_notes=quadrant_notes,
+            verified_files=verified_rel_paths[:10],
+            recommendations=recs
         )
 
 

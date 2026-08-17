@@ -112,44 +112,107 @@ class ReviewDashboard:
         res = self.engine.run_review_loop(spec=spec, progress_callback=on_progress)
         report: ReviewReport = res["report"]
 
-        # Report Header Table
-        hdr_table = Table(box=None, show_header=False, padding=(0, 2))
-        hdr_table.add_column("Field", style="bold cyan", width=20)
-        hdr_table.add_column("Value", style="bold white")
-
+        # 1. Executive Summary & Verdict Card
         score_color = "green" if report.score >= 85 else ("yellow" if report.score >= 70 else "red")
-        hdr_table.add_row("Auditor:", report.auditor)
-        hdr_table.add_row("Review Mode:", report.mode.value.upper() if hasattr(report.mode, "value") else str(report.mode).upper())
-        hdr_table.add_row("Packages Reviewed:", str(report.packages_reviewed))
-        hdr_table.add_row("Quality Score:", f"[{score_color}]{report.score:.1f} / 100[/{score_color}]")
-        hdr_table.add_row("Verdict:", f"[{score_color}]{report.verdict.upper()}[/{score_color}]")
-        hdr_table.add_row("Total Findings:", str(len(report.findings)))
+        verdict_badge = f"[{score_color} bold]{report.verdict.upper()}[/{score_color} bold]"
+        
+        # Meter bar
+        bar_len = 20
+        filled_len = int((report.score / 100.0) * bar_len)
+        meter_str = f"[{score_color}]{'█' * filled_len}{'░' * (bar_len - filled_len)}[/{score_color}]"
+
+        summary_content = ""
+        if report.executive_summary:
+            summary_content += f"[bold white]{report.executive_summary}[/bold white]\n\n"
+        elif report.summary:
+            summary_content += f"[bold white]{report.summary}[/bold white]\n\n"
+
+        summary_content += f"[dim]•[/dim] [bold cyan]Auditor Engine:[/bold cyan]    {report.auditor}\n"
+        summary_content += f"[dim]•[/dim] [bold cyan]Audit Scope:[/bold cyan]       {mode_label}\n"
+        summary_content += f"[dim]•[/dim] [bold cyan]Quality Score:[/bold cyan]     [{score_color} bold]{report.score:.1f} / 100[/] {meter_str}\n"
+        summary_content += f"[dim]•[/dim] [bold cyan]Audit Verdict:[/bold cyan]     {verdict_badge}\n"
+        summary_content += f"[dim]•[/dim] [bold cyan]Packages Checked:[/bold cyan]  {report.packages_reviewed} module package(s)\n"
+        summary_content += f"[dim]•[/dim] [bold cyan]Total Findings:[/bold cyan]    {len(report.findings)} defect(s) detected"
 
         self.console.print(Panel(
-            hdr_table,
-            title="[bold bright_magenta]Audit Summary[/bold bright_magenta]",
+            summary_content,
+            title="[bold bright_magenta]🛡️  Independent Audit Executive Report[/bold bright_magenta]",
             border_style="bright_magenta",
             padding=(1, 2)
         ))
 
-        # Findings Detail Table
+        # 2. 4-Quadrant Code Audit Scorecard
+        quadrant_table = Table(box=None, show_header=True, padding=(0, 1), header_style="bold bright_cyan")
+        quadrant_table.add_column("Quadrant Dimension", style="bold white", width=26)
+        quadrant_table.add_column("Score", width=12)
+        quadrant_table.add_column("Auditor Assessment & Traceability Details", style="white")
+
+        q_names = [
+            ("requirements", "📋 Requirements Traceability", "requirements"),
+            ("code_quality", "💎 Code Quality & Typing", "code_quality"),
+            ("security", "🔒 Security & Hardening", "security"),
+            ("architecture", "🏛️ Architecture & Layering", "architecture")
+        ]
+
+        for q_key, q_label, cat_name in q_names:
+            q_score = report.quadrant_scores.get(q_key, report.score)
+            q_col = "green" if q_score >= 85 else ("yellow" if q_score >= 70 else "red")
+            q_note = report.quadrant_notes.get(q_key, "Evaluation complete.")
+            quadrant_table.add_row(
+                q_label,
+                f"[{q_col} bold]{q_score:.1f} / 100[/]",
+                q_note
+            )
+
+        self.console.print(Panel(
+            quadrant_table,
+            title="[bold cyan]📊 4-Quadrant Quality & Security Scorecard[/bold cyan]",
+            border_style="cyan",
+            padding=(1, 2)
+        ))
+
+        # 3. Audited Target Artifacts & Files
+        if report.verified_files:
+            file_list_str = "\n".join([f"  [green]✓[/green] [dim]{f}[/dim]" for f in report.verified_files[:10]])
+            if len(report.verified_files) > 10:
+                file_list_str += f"\n  [dim]... (+{len(report.verified_files) - 10} more files verified)[/dim]"
+            self.console.print(Panel(
+                file_list_str,
+                title="[bold green]📁 Verified Source Code & Artifacts[/bold green]",
+                border_style="dim green",
+                padding=(1, 2)
+            ))
+
+        # 4. Actionable Recommendations
+        if report.recommendations:
+            rec_list_str = "\n".join([f"  [yellow]{idx}.[/yellow] {rec}" for idx, rec in enumerate(report.recommendations[:5], start=1)])
+            self.console.print(Panel(
+                rec_list_str,
+                title="[bold yellow]💡 Auditor Recommendations & Next Steps[/bold yellow]",
+                border_style="yellow",
+                padding=(1, 2)
+            ))
+
+        # 5. Findings Detail Table (if defects detected)
         if report.findings:
-            f_table = Table(title="Detected Audit Findings & Concrete Evidence", border_style="dim", padding=(0, 1))
+            f_table = Table(title="Detected Audit Findings & Concrete Evidence", border_style="dim red", padding=(0, 1))
             f_table.add_column("ID", style="bold yellow", width=10)
             f_table.add_column("Req", style="cyan", width=10)
-            f_table.add_column("Category", style="magenta", width=13)
+            f_table.add_column("Category", style="magenta", width=14)
             f_table.add_column("Severity", style="bold", width=10)
-            f_table.add_column("Title / Evidence", style="white")
+            f_table.add_column("Issue & Evidence", style="white")
 
             for f in report.findings[:15]:
                 sev_color = "red" if f.severity in (ReviewSeverity.CRITICAL, ReviewSeverity.HIGH) else "yellow"
                 req_lbl = f.requirement_id or "-"
                 title_ev = f"[bold]{f.title}[/bold]"
-                if f.evidence:
-                    title_ev += f"\n[dim]Evidence: {f.evidence}[/dim]"
                 if f.file_path:
                     loc = f"{f.file_path}:{f.line_number}" if f.line_number else f.file_path
                     title_ev += f" [dim]({loc})[/dim]"
+                if f.evidence:
+                    title_ev += f"\n[dim red]Evidence: {f.evidence}[/dim red]"
+                if f.recommendation:
+                    title_ev += f"\n[dim green]Fix: {f.recommendation}[/dim green]"
 
                 f_table.add_row(
                     f.id,

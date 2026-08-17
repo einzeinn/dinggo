@@ -86,6 +86,11 @@ class ReviewReport(BaseModel):
     verdict: Literal["approved", "revisions_required", "rejected"] = "approved"
     findings: List[ReviewFinding] = Field(default_factory=list)
     summary: str = ""
+    executive_summary: str = ""
+    quadrant_scores: Dict[str, float] = Field(default_factory=dict, description="Score per quadrant (0-100)")
+    quadrant_notes: Dict[str, str] = Field(default_factory=dict, description="Detailed assessment per quadrant")
+    verified_files: List[str] = Field(default_factory=list, description="Target files verified during audit")
+    recommendations: List[str] = Field(default_factory=list, description="Actionable recommendations from reviewer")
     timestamp: str = Field(default_factory=lambda: time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()))
     mode: ReviewMode = ReviewMode.TARGETED
     packages_reviewed: int = 1
