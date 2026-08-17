@@ -58,8 +58,43 @@ class ReviewDashboard:
 
             self.engine.adapter = get_reviewer_adapter(selected, root_dir=self.root_dir)
 
+        if interactive:
+            from core.reviewer.models import ReviewLevel
+            scope_options = [
+                (
+                    "1. Level 1: Requirement Review (Targeted)",
+                    "Verify acceptance criteria & detect fake/mock returns per requirement",
+                    ("targeted", ReviewLevel.LEVEL_1_REQUIREMENT)
+                ),
+                (
+                    "2. Level 2: Code Quality Review (Targeted)",
+                    "Audit code correctness, error handling, typing & maintainability",
+                    ("targeted", ReviewLevel.LEVEL_2_CODE)
+                ),
+                (
+                    "3. Level 3: Security & Vulnerability Review (Targeted)",
+                    "Audit auth bypass, credentials, injection, secrets & CORS",
+                    ("targeted", ReviewLevel.LEVEL_3_SECURITY)
+                ),
+                (
+                    "4. Level 4: Full Repository Audit",
+                    "Comprehensive review across entire codebase, architecture & configs",
+                    ("full", ReviewLevel.LEVEL_4_FULL_AUDIT)
+                ),
+                ("5. Cancel", "Return to main menu", "cancel")
+            ]
+
+            selected_scope = select_menu_option("SELECT AUDIT SCOPE / LEVEL", scope_options)
+            if not selected_scope or selected_scope == "cancel":
+                return None
+
+            selected_mode, selected_level = selected_scope
+            self.engine.mode = selected_mode
+            self.engine.level = selected_level
+
         auditor_name = getattr(self.engine.adapter, "name", "Independent Auditor")
-        mode_label = "Targeted Review (Per-Requirement Packages)" if self.engine.mode == "targeted" else "Full Repository Audit"
+        scope_name = f"Level {self.engine.level.value.replace('_', ' ').title()}" if hasattr(self.engine.level, "value") else str(self.engine.level)
+        mode_label = f"Targeted ({scope_name})" if self.engine.mode == "targeted" else f"Full ({scope_name})"
         
         self.console.print(f"[bold white]Active Auditor:[/bold white] [bold yellow]{auditor_name}[/bold yellow]")
         self.console.print(f"[bold white]Audit Scope:[/bold white]    [bold cyan]{mode_label}[/bold cyan]\n")

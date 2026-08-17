@@ -123,13 +123,34 @@ def build_package_prompt(package: ReviewPackage) -> str:
     if package.dependencies:
         prompt += f"### Relevant Dependencies:\n- {', '.join(package.dependencies)}\n\n"
 
-    prompt += (
-        "### Auditor Instructions:\n"
-        "1. Verify if the code truly satisfies the requirements and acceptance criteria.\n"
-        "2. Detect any stub, mock return, unauthenticated bypass, or dangerous logic.\n"
-        "3. If you need to inspect an imported helper module, emit a `context_request`.\n"
-        "4. Otherwise, provide the JSON ReviewReport with score, verdict, and concrete evidence."
-    )
+    if package.level == ReviewLevel.LEVEL_1_REQUIREMENT:
+        prompt += (
+            "### LEVEL 1: REQUIREMENT VERIFICATION INSTRUCTIONS:\n"
+            "1. Check whether the implementation genuinely satisfies the acceptance criteria for each requirement.\n"
+            "2. Identify any fake returns, stub functions, unexecuted payloads, or missing business logic.\n"
+            "3. If any requirement fails or is stubbed, set verdict to 'rejected' or 'revisions_required' and provide concrete evidence.\n"
+            "4. Return ONLY valid JSON conforming to ReviewReport schema."
+        )
+    elif package.level == ReviewLevel.LEVEL_2_CODE:
+        prompt += (
+            "### LEVEL 2: CODE QUALITY & CORRECTNESS INSTRUCTIONS:\n"
+            "1. Audit for bug hazards, unhandled exceptions (bare except), resource leaks, typing inconsistencies, and code smells.\n"
+            "2. Verify maintainability, separation of concerns, and clean structure.\n"
+            "3. Return ONLY valid JSON conforming to ReviewReport schema with actionable recommendations."
+        )
+    elif package.level == ReviewLevel.LEVEL_3_SECURITY:
+        prompt += (
+            "### LEVEL 3: SECURITY & VULNERABILITY AUDIT INSTRUCTIONS:\n"
+            "1. Hunt for authentication & authorization bypasses, hardcoded secrets, and plaintext credentials.\n"
+            "2. Check for SQL/command injection, RCE via eval/exec, insecure hashing, and lack of input validation.\n"
+            "3. Return ONLY valid JSON conforming to ReviewReport schema with exact line and snippet evidence."
+        )
+    else:
+        prompt += (
+            "### LEVEL 4: FULL REPOSITORY AUDIT INSTRUCTIONS:\n"
+            "1. Evaluate architecture, security posture, code quality, and specification completeness.\n"
+            "2. Return ONLY valid JSON conforming to ReviewReport schema."
+        )
     return prompt
 
 
