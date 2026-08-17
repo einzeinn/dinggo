@@ -9,7 +9,10 @@ from core.planner import Planner, PlanSchema, PlanStep
 from core.codegen import CodegenDelegate
 from core.executor import Executor
 
+__version__ = "0.2.0"
+
 __all__ = [
+    "__version__",
     "OllamaClient",
     "IntentParser",
     "IntentSchema",

@@ -63,7 +63,7 @@ class TerminalUI:
             "[bold blue] |___/___|_|\\_|\\___\\___|\\___/  [/bold blue]"
         )
         subtitle = (
-            f"  [bold white]🐕 DINGGO[/bold white] [dim]CLI IDE · v0.1.0[/dim]\n\n"
+            f"  [bold white]🐕 DINGGO[/bold white] [dim]PRODUCT FACTORY · v0.2.0[/dim]\n\n"
             f"  [dim]Workspace[/dim]   [bold white]{working_dir}[/bold white]\n"
             f"  [dim]Models[/dim]      [cyan]SEA-LION[/cyan] → [magenta]Qwen3.5[/magenta] → [yellow]Qwen2.5-Coder[/yellow]"
         )
