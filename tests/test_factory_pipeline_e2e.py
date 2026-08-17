@@ -13,6 +13,7 @@ from core.state.state_manager import StateManager, PipelinePhase, PipelineStatus
 
 class TestProductFactoryPipelineE2E(unittest.TestCase):
     def setUp(self):
+        os.environ["DINGGO_TEST_MODE"] = "1"
         self.test_dir = tempfile.mkdtemp()
         self.state_mgr = StateManager(root_dir=self.test_dir)
         self.console = Console(file=io.StringIO(), force_terminal=False, width=120)

@@ -269,46 +269,66 @@ class Planner:
             except Exception:
                 pass
 
-        # Deterministic Fallback DAG Generator
+        # Deterministic Fast Architectural DAG Generator
         tasks: List[TaskNode] = []
         task_idx = 1
 
-        # 1. Base setup task
+        # 1. Base setup task (Infra)
         setup_id = f"TASK-{task_idx:03d}"
         tasks.append(TaskNode(
             id=setup_id,
             title="Setup project scaffolding & environment configuration",
-            description=f"Initialize project scaffolding for {framework}.",
+            description=f"Initialize project scaffolding, manifests, docker-compose, and environment for {framework}.",
             requirement_id=None,
             worker_type="infra",
-            target_files=["dinggo.yaml", "README.md"],
+            target_files=["README.md", "docker-compose.yml", "backend/requirements.txt", ".env.example"],
             depends_on=[]
         ))
         task_idx += 1
 
-        # 2. Database schema task
+        # 2. Database schema & connection task (Database)
         db_id = f"TASK-{task_idx:03d}"
         tasks.append(TaskNode(
             id=db_id,
-            title="Initialize database models and migrations",
-            description=f"Set up {database} schema models and connection pools.",
+            title="Initialize database connection, models, and migrations",
+            description=f"Set up {database} SQLAlchemy ORM models (User, Task) and database session factory.",
             requirement_id=None,
             worker_type="database",
-            target_files=["models.py"],
+            target_files=["backend/app/db/session.py", "backend/app/db/models.py"],
             depends_on=[setup_id]
         ))
         task_idx += 1
 
-        # 3. Requirement-driven tasks
+        # 3. Requirement-driven tasks with domain path mapping
         prev_dep = db_id
         for req in req_list:
             t_id = f"TASK-{task_idx:03d}"
+            req_id_upper = req.id.upper()
             worker = "backend"
-            if "ui" in req.category.lower() or "frontend" in req.title.lower():
+
+            if req_id_upper.startswith("AUTH"):
+                target_files = ["backend/app/schemas/auth.py", "backend/app/routers/auth.py"]
+                worker = "backend"
+            elif req_id_upper.startswith("TASK"):
+                target_files = ["backend/app/schemas/task.py", "backend/app/routers/tasks.py"]
+                worker = "backend"
+            elif req_id_upper.startswith("FILTER"):
+                target_files = ["backend/app/routers/tasks.py"]
+                worker = "backend"
+            elif req_id_upper.startswith("STAT"):
+                target_files = ["backend/app/routers/stats.py"]
+                worker = "backend"
+            elif req_id_upper.startswith("SEC"):
+                target_files = ["backend/app/core/security.py"]
+                worker = "backend"
+            elif req_id_upper.startswith("UI") or "frontend" in req.category.lower():
+                target_files = ["frontend/index.html", "frontend/app.js", "frontend/styles.css"]
                 worker = "frontend"
-            elif "db" in req.category.lower() or "data" in req.category.lower():
-                worker = "database"
-            elif "security" in req.category.lower():
+            elif req_id_upper.startswith("TEST") or req_id_upper.startswith("AC"):
+                target_files = ["backend/tests/test_api.py"]
+                worker = "backend"
+            else:
+                target_files = [f"backend/app/services/{req.id.lower().replace('-', '_')}.py"]
                 worker = "backend"
 
             tasks.append(TaskNode(
@@ -317,21 +337,21 @@ class Planner:
                 description=f"Implement requirement [{req.id}]: {req.description}",
                 requirement_id=req.id,
                 worker_type=worker,
-                target_files=[f"{req.id.lower().replace('-', '_')}.py"],
+                target_files=target_files,
                 depends_on=[prev_dep]
             ))
             prev_dep = t_id
             task_idx += 1
 
-        # 4. Integration task
+        # 4. Integration task (Entrypoint)
         integ_id = f"TASK-{task_idx:03d}"
         tasks.append(TaskNode(
             id=integ_id,
-            title="End-to-End System Integration & Wiring",
-            description="Wire backend API endpoints with frontend views and test coverage.",
+            title="End-to-End System Integration & API Entrypoint",
+            description="Wire backend FastAPI routers (auth, tasks, stats) into main.py and expose health checks.",
             requirement_id=None,
             worker_type="integration",
-            target_files=["main.py"],
+            target_files=["backend/app/main.py"],
             depends_on=[prev_dep]
         ))
 

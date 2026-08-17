@@ -88,6 +88,12 @@ class CodegenDelegate:
                 f"Output ONLY pure {ext} content directly!\n"
                 f"DO NOT generate a Python script `def generate_...` or `file.write()`, and DO NOT write explanation text outside the document."
             )
+        if hasattr(self.client, "is_available") and not self.client.is_available():
+            return {
+                "success": False,
+                "error": "Ollama client is unavailable",
+                "code": ""
+            }
 
         res = self.client.generate(
             model=self.model_name,

@@ -20,7 +20,7 @@ class OllamaClient:
     def is_available(self) -> bool:
         """Check if Ollama server is running."""
         try:
-            res = httpx.get(f"{self.base_url}/api/version", timeout=3.0)
+            res = httpx.get(f"{self.base_url}/api/version", timeout=0.3)
             return res.status_code == 200
         except Exception:
             return False

@@ -9,7 +9,7 @@ from core.planner import Planner, PlanSchema, PlanStep
 from core.codegen import CodegenDelegate
 from core.executor import Executor
 
-__version__ = "0.2.1"
+__version__ = "0.3.0"
 
 __all__ = [
     "__version__",
