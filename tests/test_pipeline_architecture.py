@@ -56,17 +56,18 @@ class TestPipelineArchitecture(unittest.TestCase):
         }
         res = self.executor.execute_step(step, "test_workspace")
         self.assertFalse(res["success"])
-        self.assertIn("not found or empty", res["error"])
+        self.assertIn("Target file path was missing", res["error"])
 
     def test_executor_general_response_warning(self):
-        # General response should output a warning about NO execution evidence
+        # General response should output a warning about NO execution evidence and be response_only
         step = {
             "step_number": 1,
             "description": "Synthesize data",
             "action_type": "general_response"
         }
         res = self.executor.execute_step(step, "test_workspace")
-        self.assertTrue(res["success"])
+        self.assertFalse(res["success"])
+        self.assertTrue(res.get("is_response_only"))
         self.assertIn("[WARNING: This is a general response step", res["output"])
 
 if __name__ == "__main__":
