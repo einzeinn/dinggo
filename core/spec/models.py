@@ -77,6 +77,8 @@ class ReviewConfig(BaseModel):
     default_provider: str = "codex"
     auto_revision: bool = True
     max_repair_cycles: int = 3
+    mode: Literal["targeted", "full"] = "targeted"
+    level: Literal["requirement", "code", "security", "full_audit"] = "requirement"
 
 
 class DinggoConfig(BaseModel):
