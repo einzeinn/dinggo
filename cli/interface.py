@@ -114,56 +114,41 @@ class ProductFactoryInterface:
             self.console.print("[green]Session reset to clean IDLE state.[/green]")
 
     def menu_loop(self) -> None:
-        """Main navigation menu loop."""
-        while True:
-            self._render_status_menu()
-            choice = Prompt.ask(
-                "[bold cyan]Select action[/bold cyan]",
-                choices=["1", "2", "3", "4", "5", "6", "exit", "quit"],
-                default="1"
-            )
+        """Main interactive arrow-key navigation menu loop."""
+        from cli.menu_selector import select_menu_option
 
-            if choice in ("6", "exit", "quit"):
+        while True:
+            project_name = self.state_mgr.state.project_name
+            phase_str = self.state_mgr.state.phase.value
+            status_str = self.state_mgr.state.status.value
+
+            options = [
+                ("1. Wizard", "Guided project setup, spec discovery & plan", "wizard"),
+                ("2. Execute", "Run tasks, automated tests, repair & validation", "execute"),
+                ("3. Settings", "Configure AI models, repair cycles & policies", "settings"),
+                ("4. Output", "View builds, artifacts, logs & documentation", "output"),
+                ("5. Review", "Run independent reviewer (Codex/AGY/Claude)", "review"),
+                ("6. Exit", "Save session state & quit", "exit"),
+            ]
+
+            header_extra = f"Project: {project_name}  │  Phase: {phase_str}  │  Status: {status_str}"
+            choice = select_menu_option("DINGGO PRODUCT FACTORY", options, header_extra=header_extra)
+
+            if choice in ("exit", None, "6"):
                 self.console.print("[bold cyan]🐕 Goodbye! Dinggo session saved.[/bold cyan]")
                 break
-            elif choice == "1":
+            elif choice in ("1", "wizard"):
                 wizard = ProductFactoryWizard(self.root_dir, console=self.console, state_manager=self.state_mgr)
                 wizard.run()
-            elif choice == "2":
+            elif choice in ("2", "execute"):
                 self._execute_action()
-            elif choice == "3":
+            elif choice in ("3", "settings"):
                 settings = SettingsView(self.root_dir, console=self.console)
                 settings.display_menu()
-            elif choice == "4":
+            elif choice in ("4", "output"):
                 self._output_action()
-            elif choice == "5":
+            elif choice in ("5", "review"):
                 self._review_action()
-
-    def _render_status_menu(self) -> None:
-        """Display the structured status menu card."""
-        project_name = self.state_mgr.state.project_name
-        phase_str = self.state_mgr.state.phase.value
-        status_str = self.state_mgr.state.status.value
-
-        menu_items = (
-            "  [bold cyan]> 1. Wizard[/bold cyan]      [dim]— Guided project setup, spec discovery & plan[/dim]\n"
-            "    [bold white]2. Execute[/bold white]     [dim]— Run tasks, automated tests, repair & validation[/dim]\n"
-            "    [bold white]3. Settings[/bold white]    [dim]— Configure AI models, repair cycles & policies[/dim]\n"
-            "    [bold white]4. Output[/bold white]      [dim]— View builds, artifacts, logs & documentation[/dim]\n"
-            "    [bold white]5. Review[/bold white]      [dim]— Run independent reviewer (Codex/Claude)[/dim]\n"
-            "    [bold white]6. Exit[/bold white]        [dim]— Save session state & quit[/dim]\n"
-            "  ─────────────────────────────────────────────────────────────\n"
-            f"  [dim]Project:[/dim] [bold white]{project_name}[/bold white]  │  "
-            f"[dim]Phase:[/dim] [bold cyan]{phase_str}[/bold cyan]  │  "
-            f"[dim]Status:[/dim] [bold green]{status_str}[/bold green]"
-        )
-
-        self.console.print(Panel(
-            Text.from_markup(menu_items),
-            title="[bold bright_cyan]DINGGO PRODUCT FACTORY[/bold bright_cyan]",
-            border_style="bright_cyan",
-            padding=(1, 2)
-        ))
 
     def _execute_action(self) -> None:
         """Handler for option 2: Execute."""

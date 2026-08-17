@@ -28,17 +28,30 @@ class ReviewDashboard:
         adapter = get_reviewer_adapter(adapter_name, root_dir=self.root_dir)
         self.engine = ReviewEngine(self.root_dir, state_manager=self.state_mgr, adapter=adapter)
 
-    def display_and_run(self) -> ReviewReport:
+    def display_and_run(self, interactive: bool = True) -> Optional[ReviewReport]:
         """Executes independent audit and displays results in formatted TUI."""
+        from cli.menu_selector import select_menu_option
+
         self.console.print("\n[bold magenta]══════════════════════════════════════════════════════════════[/bold magenta]")
         self.console.print("[bold bright_magenta]  🛡️  INDEPENDENT CODE AUDITOR & QUALITY REVIEW[/bold bright_magenta]")
         self.console.print("[bold magenta]══════════════════════════════════════════════════════════════[/bold magenta]\n")
 
         available = get_available_reviewers(self.root_dir)
-        av_names = [r["name"] for r in available if r["id"] != "mock"]
-        if av_names:
-            self.console.print(f"[bold cyan]Detected Auditors:[/bold cyan] [green]{', '.join(av_names)}[/green]")
-        self.console.print(f"[bold white]Active Auditor:[/bold white] [bold yellow]{self.engine.adapter.__class__.__name__}[/bold yellow]\n")
+
+        if interactive and len(available) > 1:
+            options = []
+            for idx, r in enumerate(available, start=1):
+                category = "External CLI" if r["id"] in ("codex", "agy", "claude") else ("Local LLM" if r["id"] == "ollama" else "Heuristic")
+                options.append((f"{idx}. {r['name']}", f"Run {category} audit", r["id"]))
+            options.append((f"{len(available) + 1}. Cancel", "Return to main menu", "cancel"))
+
+            selected = select_menu_option("SELECT INDEPENDENT AUDITOR", options)
+            if not selected or selected == "cancel":
+                return None
+
+            self.engine.adapter = get_reviewer_adapter(selected, root_dir=self.root_dir)
+
+        self.console.print(f"[bold white]Active Auditor:[/bold white] [bold yellow]{self.engine.adapter.audit(self.root_dir).auditor}[/bold yellow]\n")
 
         spec = SpecParser(self.root_dir).parse()
         self.console.print("[dim]Auditing codebase across Requirements, Quality, Security, and Architecture...[/dim]")
