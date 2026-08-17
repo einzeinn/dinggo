@@ -88,6 +88,9 @@ def _handle_subcommands(working_dir: str) -> bool:
         pipeline = ProductFactoryPipeline(target_dir, state_manager=mgr, non_interactive=non_interactive)
         success = pipeline.run_pipeline(auto_approve=auto_approve)
         sys.exit(0 if success else 1)
+    elif cmd in ("chat", "prompt", "ask"):
+        _run_legacy_chat(target_dir)
+        return True
     elif cmd in ("settings", "config"):
         from cli.settings_view import SettingsView
         settings = SettingsView(target_dir)
@@ -101,10 +104,18 @@ def main():
     """Main CLI entrypoint for Dinggo."""
     working_dir = os.getcwd()
 
-    # Route subcommands if provided
+    # Route subcommands if provided (e.g. init, plan, build, test, review, chat, wizard, settings)
     if _handle_subcommands(working_dir):
         return
 
+    # Default: launch the Interactive Product Factory TUI Interface
+    from cli.interface import ProductFactoryInterface
+    interface = ProductFactoryInterface(working_dir)
+    interface.start()
+
+
+def _run_legacy_chat(working_dir: str):
+    """Legacy free-form chat prompt loop."""
     ui = TerminalUI()
     ui.render_banner(os.path.basename(working_dir))
 

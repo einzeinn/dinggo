@@ -38,7 +38,9 @@ class ProductFactoryInterface:
         self.menu_loop()
 
     def display_header(self) -> None:
-        """Render main ASCII logo and subtitle."""
+        """Render main ASCII logo and startup environment detection."""
+        from core.detector import ProjectDetector
+
         logo_text = (
             "[bold cyan]  ___  ___ _  _ ___ ___  ___   [/bold cyan]\n"
             "[bold bright_cyan] |   \\|_ _| \\| / __/ __|/ _ \\  [/bold bright_cyan]\n"
@@ -47,6 +49,30 @@ class ProductFactoryInterface:
         )
         subtitle = "[bold white]🐕 DINGGO PRODUCT FACTORY[/bold white] [dim]· Specification-Driven AI Engine · v0.2.0[/dim]"
         self.console.print(f"{logo_text}\n{subtitle}\n")
+
+        project_name = os.path.basename(self.root_dir)
+        self.console.print(f"[bold cyan]Project:[/bold cyan] [bold white]{project_name}[/bold white]")
+        self.console.print("[dim]Detecting environment & specifications...[/dim]\n")
+
+        detector = ProjectDetector(self.root_dir)
+        detection = detector.detect_all()
+        proj = detection.get("project", {})
+        providers = detection.get("providers", {})
+
+        git_icon = "[green]✓[/green]" if proj.get("is_git") else "[dim]✗[/dim]"
+        spec_icon = "[green]✓[/green]" if proj.get("has_spec") else "[dim]✗[/dim]"
+        ctx_icon = "[green]✓[/green]" if proj.get("has_contextix") else "[dim]✗[/dim]"
+        prov_icon = "[green]✓[/green]" if any(providers.values()) else "[yellow]![/yellow]"
+        build_icon = "[green]✓[/green]" if proj.get("build_system") or proj.get("manifests") else "[dim]✗[/dim]"
+        test_icon = "[green]✓[/green]" if proj.get("test_framework") or os.path.isdir(os.path.join(self.root_dir, "tests")) else "[dim]✗[/dim]"
+
+        self.console.print(f"  {git_icon} Git repository")
+        self.console.print(f"  {spec_icon} Project specification (`spec/`)")
+        self.console.print(f"  {ctx_icon} Contextix memory (`.context/`)")
+        self.console.print(f"  {prov_icon} AI providers")
+        self.console.print(f"  {build_icon} Build system")
+        self.console.print(f"  {test_icon} Test system\n")
+        self.console.print("[dim]Loading project interface...[/dim]\n")
 
     def handle_resumable_session(self) -> None:
         """Prompt developer when an unfinished session is detected."""
