@@ -139,10 +139,21 @@ class ProductFactoryInterface:
 
     def _execute_action(self) -> None:
         """Handler for option 2: Execute."""
-        if self.state_mgr.state.phase == PipelinePhase.IDLE:
-            self.console.print("[yellow]⚠️  No approved plan found. Please run the Wizard first (Option 1).[/yellow]")
-        else:
-            self.console.print(f"[green]▶️  Executing project tasks for phase: {self.state_mgr.state.phase.value}...[/green]")
+        if not self.state_mgr.state.active_plan:
+            self.console.print("[yellow]⚠️  No active plan found. Please run the Wizard first (Option 1).[/yellow]")
+            return
+
+        from core.planner.task_graph import TaskGraphSchema
+        from cli.execution_view import LiveExecutionDashboard
+        from core.spec.parser import SpecParser
+
+        try:
+            graph = TaskGraphSchema(**self.state_mgr.state.active_plan)
+            spec = SpecParser(self.root_dir).parse()
+            dashboard = LiveExecutionDashboard(self.root_dir, console=self.console, state_manager=self.state_mgr)
+            dashboard.execute_plan(graph=graph, spec=spec)
+        except Exception as e:
+            self.console.print(f"[red]Error initiating execution: {e}[/red]")
 
     def _output_action(self) -> None:
         """Handler for option 4: Output."""
