@@ -317,6 +317,160 @@ class ContextixAdapter:
             state_lines.append("Aksi Terakhir: " + ", ".join(completed_actions[-3:]))
         return "\n".join(state_lines)
 
+    def build_recovery_guide(
+        self,
+        failed_task_id: Optional[str] = None,
+        task_graph: Optional[Any] = None,
+        state: Optional[Any] = None,
+        error_info: Optional[str] = None,
+    ) -> Any:
+        """
+        Synthesizes structured StateContinuationGuide using Contextix Recovery Engine.
+        """
+        try:
+            from contextix.integrations.dinggo import DinggoRecoveryEngine
+            ctx_data = self._load_raw_data()
+            return DinggoRecoveryEngine.build_guide(
+                root=self.working_dir,
+                failed_task_id=failed_task_id,
+                error_override=error_info,
+                state_override=state,
+                task_graph_override=task_graph,
+                contextix_cache=ctx_data,
+            )
+        except Exception:
+            return None
+
+    def export_recovery_guide(
+        self,
+        failed_task_id: Optional[str] = None,
+        task_graph: Optional[Any] = None,
+        state: Optional[Any] = None,
+        error_info: Optional[str] = None,
+        output_path: Optional[str] = None,
+    ) -> Optional[str]:
+        """
+        Exports state continuation and recovery guide to .context/recovery-guide.md.
+        """
+        try:
+            from contextix.integrations.dinggo import DinggoRecoveryEngine
+            guide = self.build_recovery_guide(
+                failed_task_id=failed_task_id,
+                task_graph=task_graph,
+                state=state,
+                error_info=error_info,
+            )
+            if guide:
+                out = DinggoRecoveryEngine.export_guide(
+                    guide, root=self.working_dir, output_path=output_path
+                )
+                return str(out)
+        except Exception:
+            pass
+        return None
+
+    def build_recovery_context(
+        self,
+        failed_task_id: Optional[str] = None,
+        task_graph: Optional[Any] = None,
+        state: Optional[Any] = None,
+        error_info: Optional[str] = None,
+        spec: Optional[Any] = None
+    ) -> str:
+        """
+        Synthesizes the compact 'Pending / Unfinished State' specifically for fast recovery.
+        Eliminates the need for codegen / repair models to re-scan the entire workspace from scratch.
+        
+        Extracts:
+        1. Exact uncompleted tasks vs completed tasks (DO NOT TOUCH).
+        2. Focused error diagnostics and unmet dependencies for the failed task.
+        3. Relevant project constraints & architectural decisions from Contextix memory for the targeted scope.
+        4. Target files needing completion/repair without whole-project bloating.
+        """
+        # Attempt high-fidelity synthesis via Contextix Recovery Engine
+        guide = self.build_recovery_guide(
+            failed_task_id=failed_task_id,
+            task_graph=task_graph,
+            state=state,
+            error_info=error_info,
+        )
+        if guide is not None and hasattr(guide, "to_prompt"):
+            # Auto export recovery guide artifact to .context/ and .dinggo/
+            try:
+                self.export_recovery_guide(
+                    failed_task_id=failed_task_id,
+                    task_graph=task_graph,
+                    state=state,
+                    error_info=error_info,
+                )
+            except Exception:
+                pass
+            return guide.to_prompt(max_tokens=2500)
+
+        # Robust built-in fallback if Contextix engine not available
+        sections: List[str] = []
+        sections.append("=== RECOVERY CONTEXT (Targeted Unfinished State) ===")
+
+        # 1. State summary (completed vs pending)
+        completed_ids = []
+        if state and hasattr(state, "completed_task_ids"):
+            completed_ids = list(state.completed_task_ids)
+        elif hasattr(state, "get"):
+            completed_ids = state.get("completed_task_ids", [])
+
+        if completed_ids:
+            sections.append(f"Completed Tasks (Preserved): {', '.join(completed_ids)}")
+
+        # 2. Extract failed task details & pending tasks from task graph
+        target_scope_files: List[str] = []
+        pending_task_descs: List[str] = []
+        failed_task_desc = ""
+
+        tasks = []
+        if task_graph:
+            if hasattr(task_graph, "tasks"):
+                tasks = task_graph.tasks
+            elif isinstance(task_graph, dict):
+                tasks = task_graph.get("tasks", [])
+
+        for t in tasks:
+            tid = getattr(t, "id", None) or (t.get("id") if isinstance(t, dict) else "")
+            ttitle = getattr(t, "title", "") or (t.get("title", "") if isinstance(t, dict) else "")
+            tworker = getattr(t, "worker_type", "") or (t.get("worker_type", "") if isinstance(t, dict) else "")
+            tdeps = getattr(t, "depends_on", []) or (t.get("depends_on", []) if isinstance(t, dict) else [])
+            tfiles = getattr(t, "target_files", []) or (t.get("target_files", []) if isinstance(t, dict) else [])
+
+            if tid == failed_task_id:
+                failed_task_desc = f"Task '{tid}' ({ttitle}) [Worker: {tworker}] - Depends on: {tdeps} - Files: {tfiles}"
+                target_scope_files.extend(tfiles)
+            elif tid not in completed_ids:
+                pending_task_descs.append(f"- Task '{tid}' ({ttitle}) [Worker: {tworker}]")
+                target_scope_files.extend(tfiles)
+
+        if failed_task_desc:
+            sections.append(f"Failing Task Requiring Recovery:\n  {failed_task_desc}")
+
+        if pending_task_descs:
+            sections.append(f"Remaining Pending Tasks:\n" + "\n".join(pending_task_descs[:5]))
+
+        # 3. Error Diagnostic
+        if error_info:
+            sections.append(f"Failure Diagnostic / Error Stack:\n{error_info}")
+        elif state and hasattr(state, "task_errors") and failed_task_id in state.task_errors:
+            sections.append(f"Failure Diagnostic / Error Stack:\n{state.task_errors[failed_task_id]}")
+
+        # 4. Contextix Focused Project Rules & Constraints for this scope
+        ctx_memory = self.get_relevant_context(
+            target_scope=target_scope_files,
+            summary=failed_task_desc or (error_info or "")
+        )
+        if ctx_memory:
+            sections.append(f"Project Memory & Constraints:\n{ctx_memory}")
+
+        sections.append("Instruction: Complete ONLY the failing/pending task above. Do not modify or redo already completed tasks.")
+        return "\n\n".join(sections)
+
+
     def get_status(self) -> Dict[str, Any]:
         """Returns metadata summary and current state machine status for UI display."""
         available = self.is_available()

@@ -222,7 +222,7 @@ class ReviewEngine:
             + ("Implementation demonstrates high fidelity to specification with robust logic and clean layer decoupling." if not all_findings else f"Found {len(all_findings)} finding(s) requiring remediation.")
         )
 
-        return ReviewReport(
+        report = ReviewReport(
             auditor=auditor_name,
             score=score,
             verdict=verdict,
@@ -237,6 +237,8 @@ class ReviewEngine:
             packages_reviewed=len(packages),
             context_requests=context_reqs
         )
+        self.save_report(report)
+        return report
 
     def _audit_single_package_with_investigation(
         self,
@@ -263,8 +265,123 @@ class ReviewEngine:
             else:
                 break
 
-        return final_report or ReviewReport(auditor=getattr(self.adapter, "name", "Auditor"), score=100.0, verdict="approved")
+        res_rep = final_report or ReviewReport(auditor=getattr(self.adapter, "name", "Auditor"), score=100.0, verdict="approved")
+        self.save_report(res_rep)
+        return res_rep
 
-    def _default_remedy(self, report: ReviewReport) -> None:
-        """Default heuristic remedy handler."""
-        pass
+    def run_environment_verification(self) -> Dict[str, Any]:
+        """Executes live environment test suites and syntax diagnostics for review verification."""
+        try:
+            from core.testing.test_runner import TestRunner
+            runner = TestRunner(self.root_dir)
+            summary = runner.run_all()
+            return {
+                "success": summary.success,
+                "total_tests": summary.total_tests,
+                "passed_tests": summary.passed_tests,
+                "failed_tests": summary.failed_tests,
+                "failures": [
+                    {
+                        "test_name": f.test_name,
+                        "error": f.error_message,
+                        "stack_trace": f.stack_trace
+                    }
+                    for f in summary.failures
+                ]
+            }
+        except Exception as e:
+            return {
+                "success": False,
+                "total_tests": 0,
+                "passed_tests": 0,
+                "failed_tests": 1,
+                "failures": [{"test_name": "Environment Test Runner", "error": str(e), "stack_trace": ""}]
+            }
+
+    def _default_remedy(self, report: ReviewReport) -> bool:
+        """Automated remediation handler triggered when review findings or test failures occur."""
+        try:
+            from core.repair.repair_engine import RepairEngine
+            repair_engine = RepairEngine(self.root_dir, state_manager=self.state_mgr)
+            repair_res = repair_engine.run_repair_loop()
+            return repair_res.get("success", False)
+        except Exception:
+            return False
+
+    def save_report(self, report: ReviewReport) -> str:
+        """Persists review report into .context/reviews/ and dist/reports/."""
+        import os
+        import json
+        
+        # 1. Save JSON to .context/reviews/
+        rev_dir = os.path.join(self.root_dir, ".context", "reviews")
+        os.makedirs(rev_dir, exist_ok=True)
+        json_path = os.path.join(rev_dir, "latest_audit.json")
+        try:
+            with open(json_path, "w", encoding="utf-8") as fp:
+                fp.write(report.model_dump_json(indent=2))
+        except Exception:
+            pass
+
+        # 2. Export Markdown report to dist/reports/
+        dist_reports_dir = os.path.join(self.root_dir, "dist", "reports")
+        os.makedirs(dist_reports_dir, exist_ok=True)
+        md_path = os.path.join(dist_reports_dir, "audit_report.md")
+        try:
+            md_content = f"# Independent Code & Environment Audit Report\n\n"
+            md_content += f"- **Auditor:** {report.auditor}\n"
+            md_content += f"- **Score:** {report.score:.1f} / 100\n"
+            md_content += f"- **Verdict:** {report.verdict.upper()}\n"
+            md_content += f"- **Timestamp:** {report.timestamp}\n"
+            md_content += f"- **Scope Mode:** {report.mode.value.upper()}\n\n"
+
+            if report.executive_summary:
+                md_content += f"## Executive Summary\n\n{report.executive_summary}\n\n"
+
+            md_content += "## 4-Quadrant Evaluation\n\n"
+            md_content += "| Quadrant | Score | Assessment |\n|---|---|---|\n"
+            for qk, qlabel in [("requirements", "Requirements"), ("code_quality", "Code Quality"), ("security", "Security"), ("architecture", "Architecture")]:
+                q_score = report.quadrant_scores.get(qk, report.score)
+                q_note = report.quadrant_notes.get(qk, "Evaluation complete.")
+                md_content += f"| {qlabel} | {q_score:.1f}/100 | {q_note} |\n"
+
+            if report.findings:
+                md_content += f"\n## Audit Findings ({len(report.findings)})\n\n"
+                for f in report.findings:
+                    md_content += f"### [{f.severity.value.upper()}] {f.title} ({f.id})\n"
+                    if f.file_path:
+                        md_content += f"- **Location:** `{f.file_path}`" + (f":{f.line_number}" if f.line_number else "") + "\n"
+                    if f.requirement_id:
+                        md_content += f"- **Requirement:** `{f.requirement_id}`\n"
+                    md_content += f"- **Description:** {f.description}\n"
+                    if f.evidence:
+                        md_content += f"- **Evidence:**\n```\n{f.evidence}\n```\n"
+                    if f.recommendation:
+                        md_content += f"- **Fix Recommendation:** {f.recommendation}\n"
+                    md_content += "\n"
+
+            if report.recommendations:
+                md_content += "## Auditor Recommendations\n\n"
+                for idx, r in enumerate(report.recommendations, 1):
+                    md_content += f"{idx}. {r}\n"
+
+            with open(md_path, "w", encoding="utf-8") as fp:
+                fp.write(md_content)
+        except Exception:
+            pass
+
+        return json_path
+
+    def load_latest_report(self) -> Optional[ReviewReport]:
+        """Loads latest persisted ReviewReport from disk if available."""
+        import os
+        import json
+        json_path = os.path.join(self.root_dir, ".context", "reviews", "latest_audit.json")
+        if os.path.isfile(json_path):
+            try:
+                with open(json_path, "r", encoding="utf-8") as fp:
+                    data = json.load(fp)
+                return ReviewReport(**data)
+            except Exception:
+                pass
+        return None

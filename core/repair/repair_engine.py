@@ -7,19 +7,21 @@ from core.state.state_manager import StateManager, PipelinePhase, PipelineStatus
 
 
 class RepairEngine:
-    """Orchestrates test execution, failure diagnosis, and iterative code patching."""
+    """Orchestrates test execution, failure diagnosis, and iterative code patching with Contextix recovery context."""
 
     def __init__(
         self,
         root_dir: str = ".",
         state_manager: Optional[StateManager] = None,
         max_attempts: int = 5,
-        ollama_client: Optional[Any] = None
+        ollama_client: Optional[Any] = None,
+        contextix_adapter: Optional[Any] = None
     ):
         self.root_dir = root_dir
         self.state_mgr = state_manager or StateManager(self.root_dir)
         self.max_attempts = max_attempts
         self.client = ollama_client
+        self.contextix_adapter = contextix_adapter
         self.analyzer = ErrorAnalyzer()
         self.test_runner = TestRunner(self.root_dir)
 

@@ -29,11 +29,15 @@ class TestRunSummary(BaseModel):
     elapsed_seconds: float = 0.0
 
 
-class TestRunner:
-    """Executes multi-tier automated test suites across Python/Node.js/custom frameworks."""
+from core.sandbox.runner import SandboxedRunner
 
-    def __init__(self, root_dir: str = "."):
+
+class TestRunner:
+    """Executes multi-tier automated test suites across Python/Node.js/custom frameworks under sandboxed containment."""
+
+    def __init__(self, root_dir: str = ".", sandboxed_runner: Optional[SandboxedRunner] = None):
         self.root_dir = os.path.abspath(root_dir)
+        self.sandbox = sandboxed_runner or SandboxedRunner(root_dir=self.root_dir)
 
     def run_all(self) -> TestRunSummary:
         """Run all test tiers and return unified summary."""
@@ -53,7 +57,7 @@ class TestRunner:
         total = unit_summary["total"]
         failed = len(failures)
         passed = max(0, total - failed)
-        overall_success = (failed == 0) and lint_success
+        overall_success = (failed == 0) and lint_success and unit_summary["success"]
         elapsed = round(time.time() - start_t, 2)
 
         return TestRunSummary(
@@ -67,23 +71,22 @@ class TestRunner:
         )
 
     def run_unit_tests(self) -> Dict[str, Any]:
-        """Execute discoverable unit tests in repository."""
+        """Execute discoverable unit tests in repository under sandboxed containment."""
         tests_dir = os.path.join(self.root_dir, "tests")
         if not os.path.isdir(tests_dir):
             return {"total": 1, "passed": 1, "failed": 0, "failures": [], "success": True}
 
-        # Run python unittest discovery
-        cmd = [sys.executable, "-m", "unittest", "discover", "tests"]
+        # Run sandboxed python unittest discovery
         try:
-            res = subprocess.run(cmd, cwd=self.root_dir, capture_output=True, text=True, timeout=30)
-            output = res.stderr + "\n" + res.stdout
+            res = self.sandbox.run_python_unittest("tests", timeout=30.0)
+            output = (res.get("stderr") or "") + "\n" + (res.get("stdout") or "")
 
             # Parse Ran X tests
             ran_match = re.search(r"Ran\s+(\d+)\s+tests?", output)
             total = int(ran_match.group(1)) if ran_match else 1
 
             failures = []
-            if res.returncode != 0 or "FAIL" in output or "ERROR" in output:
+            if res.get("returncode", -1) != 0 or "FAIL" in output or "ERROR" in output:
                 # Extract failing test cases
                 fail_blocks = re.findall(r"(FAIL|ERROR):\s+([^\n]+)\s*\n-+\n([\s\S]*?)(?=\n={3,}|\n-+\nRan|\Z)", output)
                 for f_type, test_name, stack in fail_blocks:
@@ -99,7 +102,7 @@ class TestRunner:
                 "passed": total - len(failures),
                 "failed": len(failures),
                 "failures": failures,
-                "success": len(failures) == 0
+                "success": len(failures) == 0 and res.get("success", False)
             }
         except Exception as e:
             return {

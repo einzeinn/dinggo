@@ -129,12 +129,20 @@ def build_package_prompt(package: ReviewPackage) -> str:
             ext = os.path.splitext(cf)[1].lstrip(".") or "text"
             prompt += f"#### File: `{cf}` (Retrieved on Demand)\n```{ext}\n{content}\n```\n\n"
 
-    if package.relevant_tests:
-        prompt += f"### Relevant Tests:\n"
-        for t in package.relevant_tests:
-            prompt += f"- `{t}`\n"
-        if package.test_results:
-            prompt += f"**Test Result:** {package.test_results.get('status', 'UNKNOWN')} ({package.test_results.get('tests_passed', 0)}/{package.test_results.get('tests_total', 0)} passed)\n"
+    if package.test_results:
+        t_stat = package.test_results.get("status", "UNKNOWN")
+        passed = package.test_results.get("tests_passed", 0)
+        total = package.test_results.get("tests_total", 0)
+        prompt += f"### Environment & Test Execution Results:\n"
+        prompt += f"- **Status:** `{t_stat}` ({passed}/{total} tests passed in execution environment)\n"
+        failures = package.test_results.get("failures", [])
+        if failures:
+            prompt += "- **Runtime Failures in Environment:**\n"
+            for f_item in failures[:5]:
+                prompt += f"  * `{f_item.get('test_name')}`: {f_item.get('error')}\n"
+                if f_item.get("stack_trace"):
+                    prompt += f"    ```\n    {f_item.get('stack_trace')}\n    ```\n"
+            prompt += "\n**CRITICAL MANDATE:** If tests failed during environment execution, you MUST flag critical/high findings for the runtime errors with concrete stack trace evidence!\n\n"
         prompt += "\n"
 
     if package.dependencies:
@@ -550,16 +558,44 @@ class BaseReviewerAdapter(ABC):
         """Performs an independent audit of the codebase or targeted ReviewPackage."""
         pass
 
+    def test_connection(self) -> Dict[str, Any]:
+        """Verify reviewer adapter connectivity and health."""
+        return {"ok": True, "message": f"{self.name} is ready"}
+
 
 class MockReviewerAdapter(BaseReviewerAdapter):
-    """Deterministic static-analysis auditor for fast, reproducible, offline evaluation."""
+    """Deterministic static-analysis and runtime test evaluation auditor for fast, reproducible, offline evaluation."""
 
     name: str = "Dinggo Heuristic Auditor"
     provider_id: str = "mock"
 
+    def test_connection(self) -> Dict[str, Any]:
+        return {"ok": True, "message": "Heuristic static & environment test scanner ready (Offline)"}
+
     def audit(self, root_dir: str, spec: Optional[ProductSpec] = None, package: Optional[ReviewPackage] = None) -> ReviewReport:
         findings: List[ReviewFinding] = []
         f_count = 1
+
+        # 0. Dynamic Environment Test Failure Evaluation
+        if package and package.test_results and package.test_results.get("status") == "FAIL":
+            for tfail in package.test_results.get("failures", []):
+                t_name = tfail.get("test_name", "Test Execution")
+                t_err = tfail.get("error", "Runtime failure during test execution")
+                t_stack = tfail.get("stack_trace") or t_err
+                primary_file = package.target_files[0] if package.target_files else None
+                findings.append(ReviewFinding(
+                    id=f"FIND-{f_count:03d}",
+                    category=ReviewCategory.CODE_QUALITY if "Compilation" in t_name else ReviewCategory.REQUIREMENTS,
+                    severity=ReviewSeverity.CRITICAL,
+                    requirement_id=package.requirement_id if package else None,
+                    file_path=primary_file,
+                    line_number=None,
+                    title=f"Environment Runtime Error: {t_name}",
+                    description=f"Automated execution failed in environment: {t_err}",
+                    evidence=t_stack,
+                    recommendation="Fix runtime error and ensure test suite passes in execution environment."
+                ))
+                f_count += 1
 
         # Scan target files from package if provided, else scan root directory
         files_to_scan = []
@@ -707,6 +743,13 @@ class OllamaReviewerAdapter(BaseReviewerAdapter):
         self.client = ollama_client or OllamaClient(base_url=base_url)
         self.model = model or os.getenv("MODEL_REVIEWER") or os.getenv("MODEL_CODEGEN") or "qwen2.5:3b"
 
+    def test_connection(self) -> Dict[str, Any]:
+        if self.client.is_available():
+            models = self.client.list_local_models()
+            model_info = f", models: {', '.join(models[:2])}" if models else ""
+            return {"ok": True, "message": f"Ollama server connected at {self.client.base_url}{model_info}"}
+        return {"ok": False, "message": f"Ollama server not reachable at {self.client.base_url}"}
+
     def audit(self, root_dir: str, spec: Optional[ProductSpec] = None, package: Optional[ReviewPackage] = None) -> ReviewReport:
         if not self.client.is_available():
             mock_rep = MockReviewerAdapter().audit(root_dir, spec, package=package)
@@ -752,6 +795,13 @@ class CodexReviewerAdapter(BaseReviewerAdapter):
         self.base_url = (base_url or os.getenv("OPENAI_BASE_URL", "https://api.openai.com/v1")).rstrip("/")
         self.model = model or os.getenv("CODEX_MODEL", "gpt-4o")
         self.cli_path = cli_path or shutil.which("codex") or shutil.which("codex.cmd")
+
+    def test_connection(self) -> Dict[str, Any]:
+        if self.api_key:
+            return {"ok": True, "message": f"OpenAI/Codex API configured (model: {self.model})"}
+        if self.cli_path:
+            return {"ok": True, "message": f"Codex CLI found at {self.cli_path}"}
+        return {"ok": False, "message": "Codex CLI not in PATH and no OPENAI_API_KEY/CODEX_API_KEY set"}
 
     def audit(self, root_dir: str, spec: Optional[ProductSpec] = None, package: Optional[ReviewPackage] = None) -> ReviewReport:
         prompt = build_audit_prompt(root_dir, spec=spec, package=package)
@@ -819,6 +869,13 @@ class ClaudeReviewerAdapter(BaseReviewerAdapter):
         self.api_key = api_key or os.getenv("ANTHROPIC_API_KEY") or os.getenv("CLAUDE_API_KEY")
         self.model = model or os.getenv("CLAUDE_MODEL", "claude-3-7-sonnet-20250219")
         self.cli_path = cli_path or shutil.which("claude") or shutil.which("claude.cmd") or shutil.which("claude-code")
+
+    def test_connection(self) -> Dict[str, Any]:
+        if self.api_key:
+            return {"ok": True, "message": f"Anthropic Claude API configured (model: {self.model})"}
+        if self.cli_path:
+            return {"ok": True, "message": f"Claude CLI found at {self.cli_path}"}
+        return {"ok": False, "message": "Claude CLI not found and no ANTHROPIC_API_KEY set"}
 
     def audit(self, root_dir: str, spec: Optional[ProductSpec] = None, package: Optional[ReviewPackage] = None) -> ReviewReport:
         prompt = build_audit_prompt(root_dir, spec=spec, package=package)
@@ -888,6 +945,13 @@ class AgyReviewerAdapter(BaseReviewerAdapter):
         self.api_key = api_key or os.getenv("GEMINI_API_KEY")
         self.model = model or os.getenv("GEMINI_MODEL", "gemini-2.5-flash")
         self.cli_path = cli_path or shutil.which("agy") or shutil.which("agy.cmd") or shutil.which("antigravity")
+
+    def test_connection(self) -> Dict[str, Any]:
+        if self.api_key:
+            return {"ok": True, "message": f"Google Gemini API configured (model: {self.model})"}
+        if self.cli_path:
+            return {"ok": True, "message": f"Antigravity CLI found at {self.cli_path}"}
+        return {"ok": False, "message": "AGY CLI not found and no GEMINI_API_KEY set"}
 
     def audit(self, root_dir: str, spec: Optional[ProductSpec] = None, package: Optional[ReviewPackage] = None) -> ReviewReport:
         prompt = build_audit_prompt(root_dir, spec=spec, package=package)
@@ -959,6 +1023,9 @@ class OpenAICompatibleReviewerAdapter(BaseReviewerAdapter):
         self.base_url = (base_url or os.getenv("OPENAI_COMPATIBLE_BASE_URL", "http://localhost:8000/v1")).rstrip("/")
         self.api_key = api_key or os.getenv("OPENAI_COMPATIBLE_API_KEY", "dummy-key")
         self.model = model or os.getenv("OPENAI_COMPATIBLE_MODEL", "default")
+
+    def test_connection(self) -> Dict[str, Any]:
+        return {"ok": True, "message": f"OpenAI-Compatible endpoint configured at {self.base_url} (model: {self.model})"}
 
     def audit(self, root_dir: str, spec: Optional[ProductSpec] = None, package: Optional[ReviewPackage] = None) -> ReviewReport:
         prompt = build_audit_prompt(root_dir, spec=spec, package=package)

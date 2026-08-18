@@ -63,20 +63,25 @@ class ProductFactoryPipeline:
         self.state_mgr.state.stats.requirements_total = len(spec.requirements)
         self.state_mgr.save()
 
-        # Step 2: Generate Plan DAG
-        self.console.print("\n[bold cyan]Phase 1/6: Constructing Task Graph DAG...[/bold cyan]")
-        plan_res = self.planner.create_product_task_graph(spec)
-        graph = plan_res["graph"]
-        self.state_mgr.state.active_plan = graph.model_dump(mode="json")
-        self.state_mgr.state.stats.tasks_total = len(graph.tasks)
-        self.state_mgr.save()
+        # Step 2: Generate or Resume Plan DAG
+        if self.state_mgr.can_resume() and self.state_mgr.state.active_plan:
+            self.console.print("\n[bold cyan]Phase 1/6: Resuming active Task Graph DAG...[/bold cyan]")
+            from core.planner.task_graph import TaskGraphSchema
+            graph = TaskGraphSchema(**self.state_mgr.state.active_plan)
+        else:
+            self.console.print("\n[bold cyan]Phase 1/6: Constructing Task Graph DAG...[/bold cyan]")
+            plan_res = self.planner.create_product_task_graph(spec)
+            graph = plan_res["graph"]
+            self.state_mgr.state.active_plan = graph.model_dump(mode="json")
+            self.state_mgr.state.stats.tasks_total = len(graph.tasks)
+            self.state_mgr.save()
 
-        # Step 3: Approval Gate 1 (Plan Review)
-        gate1 = PlanReviewGate(console=self.console)
-        app1, _ = gate1.review_and_confirm(graph, non_interactive=is_headless)
-        if not app1:
-            self.console.print("[red]Plan rejected. Pipeline halted.[/red]")
-            return False
+            # Step 3: Approval Gate 1 (Plan Review)
+            gate1 = PlanReviewGate(console=self.console)
+            app1, _ = gate1.review_and_confirm(graph, non_interactive=is_headless)
+            if not app1:
+                self.console.print("[red]Plan rejected. Pipeline halted.[/red]")
+                return False
 
         # Step 4: Multi-Worker Implementation
         self.console.print("\n[bold cyan]Phase 2/6: Executing Tasks via Multi-Worker Engine...[/bold cyan]")

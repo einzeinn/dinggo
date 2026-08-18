@@ -314,6 +314,57 @@ class TestReviewerEngine(unittest.TestCase):
         self.assertIsNotNone(report)
         self.assertEqual(report.verdict, "approved")
 
+    def test_dynamic_environment_test_failure_detection(self):
+        """Test reviewer flags critical defect with concrete stack trace when environment tests fail."""
+        pkg = ReviewPackage(
+            package_id="PKG-TEST-ERR",
+            level=ReviewLevel.LEVEL_1_REQUIREMENT,
+            mode=ReviewMode.TARGETED,
+            target_files=["services/calc.py"],
+            test_results={
+                "status": "FAIL",
+                "tests_passed": 0,
+                "tests_total": 1,
+                "failures": [
+                    {
+                        "test_name": "test_calculate_total",
+                        "error": "TypeError: unsupported operand type(s) for +: 'int' and 'str'",
+                        "stack_trace": "File 'test_calc.py', line 12 in test_calculate_total\ncalc.add(5, '10')"
+                    }
+                ]
+            }
+        )
+        adapter = MockReviewerAdapter()
+        report = adapter.audit(self.test_dir, package=pkg)
+
+        self.assertIn(report.verdict, ("revisions_required", "rejected"))
+        self.assertTrue(any("TypeError" in f.description or "Environment Runtime Error" in f.title for f in report.findings))
+        self.assertTrue(any("test_calc.py" in (f.evidence or "") for f in report.findings))
+
+    def test_reviewer_report_persistence_and_export(self):
+        """Test review engine persists JSON report to .context/reviews and Markdown to dist/reports."""
+        adapter = MockReviewerAdapter()
+        engine = ReviewEngine(self.test_dir, state_manager=self.state_mgr, adapter=adapter, mode="full")
+        report = engine.execute_audit()
+
+        json_file = os.path.join(self.test_dir, ".context", "reviews", "latest_audit.json")
+        md_file = os.path.join(self.test_dir, "dist", "reports", "audit_report.md")
+
+        self.assertTrue(os.path.isfile(json_file))
+        self.assertTrue(os.path.isfile(md_file))
+
+        loaded_report = engine.load_latest_report()
+        self.assertIsNotNone(loaded_report)
+        self.assertEqual(loaded_report.score, report.score)
+        self.assertEqual(loaded_report.verdict, report.verdict)
+
+    def test_reviewer_adapter_health_checks(self):
+        """Test test_connection health check method across adapters."""
+        mock_adapter = MockReviewerAdapter()
+        diag = mock_adapter.test_connection()
+        self.assertTrue(diag["ok"])
+        self.assertIn("ready", diag["message"].lower())
+
 
 if __name__ == "__main__":
     unittest.main()

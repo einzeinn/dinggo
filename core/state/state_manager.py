@@ -68,6 +68,8 @@ class ProjectState(BaseModel):
     stats: PipelineStats = Field(default_factory=PipelineStats)
     active_plan: Optional[Dict[str, Any]] = None
     completed_task_ids: List[str] = Field(default_factory=list)
+    failed_task_ids: List[str] = Field(default_factory=list)
+    task_errors: Dict[str, str] = Field(default_factory=dict)
     build_history: List[Dict[str, Any]] = Field(default_factory=list)
     review_history: List[Dict[str, Any]] = Field(default_factory=list)
 
@@ -117,27 +119,53 @@ class StateManager:
 
         if can_resume is not None:
             self.state.session.can_resume = can_resume
-        elif status in (PipelineStatus.IN_PROGRESS, PipelineStatus.PAUSED, PipelineStatus.AWAITING_APPROVAL):
+        elif status in (PipelineStatus.IN_PROGRESS, PipelineStatus.PAUSED, PipelineStatus.AWAITING_APPROVAL, PipelineStatus.FAILED):
             self.state.session.can_resume = True
-        elif status in (PipelineStatus.SUCCESS, PipelineStatus.FAILED):
+        elif status == PipelineStatus.SUCCESS:
             self.state.session.can_resume = False
 
         self.save()
 
     def can_resume(self) -> bool:
-        """Check if there is an in-progress or paused session that can be resumed."""
+        """Check if there is an in-progress, paused, or failed session that can be resumed."""
         return (
             self.state.session.can_resume
             and self.state.phase not in (PipelinePhase.IDLE, PipelinePhase.COMPLETED)
             and self.state.status != PipelineStatus.IDLE
         )
 
+    def is_task_completed(self, task_id: str) -> bool:
+        """Check if a task is already recorded as successfully completed."""
+        return task_id in self.state.completed_task_ids
+
     def record_task_completed(self, task_id: str) -> None:
-        """Mark a task ID as completed and update stats."""
+        """Mark a task ID as completed, remove from failed list, and update stats."""
         if task_id not in self.state.completed_task_ids:
             self.state.completed_task_ids.append(task_id)
-            self.state.stats.tasks_completed = len(self.state.completed_task_ids)
-            self.save()
+        if task_id in self.state.failed_task_ids:
+            self.state.failed_task_ids.remove(task_id)
+        if task_id in self.state.task_errors:
+            del self.state.task_errors[task_id]
+
+        self.state.stats.tasks_completed = len(self.state.completed_task_ids)
+        self.save()
+
+    def record_task_failed(self, task_id: str, error: str = "") -> None:
+        """Mark a task ID as failed, record its error, and preserve partial completed state."""
+        if task_id not in self.state.failed_task_ids:
+            self.state.failed_task_ids.append(task_id)
+        if error:
+            self.state.task_errors[task_id] = error
+        self.save()
+
+    def get_pending_task_ids(self, all_task_ids: List[str]) -> List[str]:
+        """Returns the list of task IDs that have not yet been successfully completed."""
+        completed_set = set(self.state.completed_task_ids)
+        return [tid for tid in all_task_ids if tid not in completed_set]
+
+    def get_completed_task_ids(self) -> List[str]:
+        """Returns the list of completed task IDs."""
+        return list(self.state.completed_task_ids)
 
     def record_test_result(self, total: int, passed: int) -> None:
         """Update test stats."""

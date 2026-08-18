@@ -36,11 +36,25 @@ class TaskScheduler:
         self.state_mgr.transition_to(PipelinePhase.IMPLEMENTING, PipelineStatus.IN_PROGRESS, "Executing task graph DAG", can_resume=True)
         topological_tasks = graph.get_topological_order()
         total_tasks = len(topological_tasks)
-        completed_ids = set()
+        completed_ids = set(self.state_mgr.get_completed_task_ids())
 
         start_time = time.time()
 
         for idx, task in enumerate(topological_tasks, start=1):
+            # If task was already completed in a previous or partial run, preserve state and skip re-executing
+            if task.id in completed_ids:
+                task.status = "completed"
+                # Add existing synthetic or preserved record if not already tracked
+                if not any(r.task_id == task.id for r in self.execution_records):
+                    self.execution_records.append(ExecutionRecord(
+                        task_id=task.id,
+                        requirement_id=task.requirement_id,
+                        worker_type=task.worker_type,
+                        status="completed",
+                        output_summary=f"Task {task.id} already completed (partial-safe cache preserved)."
+                    ))
+                continue
+
             # Check dependency satisfaction
             for dep_id in task.depends_on:
                 if dep_id not in completed_ids:
@@ -53,7 +67,8 @@ class TaskScheduler:
                         error=f"Unmet dependency: '{dep_id}' was not completed."
                     )
                     self.execution_records.append(rec)
-                    self.state_mgr.transition_to(PipelinePhase.FAILED, PipelineStatus.FAILED, f"Task {task.id} skipped due to unmet dependency {dep_id}")
+                    self.state_mgr.record_task_failed(task.id, rec.error)
+                    self.state_mgr.transition_to(PipelinePhase.FAILED, PipelineStatus.FAILED, f"Task {task.id} skipped due to unmet dependency {dep_id}", can_resume=True)
                     return {
                         "success": False,
                         "failed_task_id": task.id,
@@ -81,7 +96,8 @@ class TaskScheduler:
                 self.state_mgr.record_task_completed(task.id)
             else:
                 task.status = "failed"
-                self.state_mgr.transition_to(PipelinePhase.FAILED, PipelineStatus.FAILED, f"Task {task.id} failed: {record.error}")
+                self.state_mgr.record_task_failed(task.id, record.error or "Execution failed")
+                self.state_mgr.transition_to(PipelinePhase.FAILED, PipelineStatus.FAILED, f"Task {task.id} failed: {record.error}", can_resume=True)
                 if on_task_finish:
                     on_task_finish(task, record, idx, total_tasks)
                 return {

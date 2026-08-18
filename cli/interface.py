@@ -169,23 +169,114 @@ class ProductFactoryInterface:
             self.console.print(f"[red]Error initiating execution: {e}[/red]")
 
     def _output_action(self) -> None:
-        """Handler for option 4: Output."""
-        self.console.print("\n[bold cyan]📦 PRODUCT FACTORY OUTPUTS & ARTIFACTS[/bold cyan]")
-        dist_dir = os.path.join(self.root_dir, "dist")
-        if os.path.isdir(dist_dir):
-            files = os.listdir(dist_dir)
-            self.console.print(f"[green]Found {len(files)} items in dist/:[/green] {', '.join(files)}")
-        else:
-            self.console.print("[dim]No dist/ directory generated yet. Build and export to generate artifacts.[/dim]")
+        """Handler for option 4: Output - Displays workspace files, dist packages, and allows building."""
+        from rich.table import Table
+        from rich.panel import Panel
+        from core.builder.builder_engine import BuildEngine
+        from core.spec.parser import SpecParser
 
-        # Show stats
+        self.console.print("\n[bold cyan]══════════════════════════════════════════════════════════════[/bold cyan]")
+        self.console.print("[bold bright_cyan]  📦 PRODUCT FACTORY OUTPUTS & ARTIFACTS[/bold bright_cyan]")
+        self.console.print("[bold cyan]══════════════════════════════════════════════════════════════[/bold cyan]\n")
+
+        # 1. Inspect Generated Source Files from Active Plan / Workspace
+        plan_data = self.state_mgr.state.active_plan or {}
+        tasks = plan_data.get("tasks", [])
+        generated_files = []
+        for t in tasks:
+            for fpath in t.get("target_files", []):
+                if fpath not in generated_files:
+                    generated_files.append(fpath)
+
+        src_table = Table(title="[bold green]🛠 Generated Source Files & Modules[/bold green]", box=None, padding=(0, 2))
+        src_table.add_column("File Path", style="bold white")
+        src_table.add_column("Status", style="cyan")
+        src_table.add_column("Size", style="dim")
+
+        found_src_count = 0
+        for rel_f in generated_files:
+            full_f = os.path.join(self.root_dir, rel_f)
+            if os.path.isfile(full_f):
+                found_src_count += 1
+                size_kb = round(os.path.getsize(full_f) / 1024, 2)
+                src_table.add_row(f"📄 {rel_f}", "[green]✓ Created (In Workspace)[/green]", f"{size_kb} KB")
+            else:
+                src_table.add_row(f"📄 {rel_f}", "[dim yellow]Pending / Not created[/dim yellow]", "-")
+
+        if not generated_files:
+            # Fallback scan for common source directories
+            for scan_dir in ("src", "app", "lib", "models", "routers", "tests"):
+                full_sd = os.path.join(self.root_dir, scan_dir)
+                if os.path.isdir(full_sd):
+                    for r, _, fls in os.walk(full_sd):
+                        for fl in fls:
+                            rf = os.path.relpath(os.path.join(r, fl), self.root_dir)
+                            size_kb = round(os.path.getsize(os.path.join(r, fl)) / 1024, 2)
+                            src_table.add_row(f"📄 {rf}", "[green]✓ Found[/green]", f"{size_kb} KB")
+                            found_src_count += 1
+
+        if found_src_count > 0:
+            self.console.print(Panel(src_table, border_style="green", padding=(1, 2)))
+        else:
+            self.console.print("[dim]No generated source files detected in workspace yet.[/dim]\n")
+
+        # 2. Inspect Distribution Packages (dist/)
+        dist_dir = os.path.join(self.root_dir, "dist")
+        has_dist = os.path.isdir(dist_dir) and len(os.listdir(dist_dir)) > 0
+
+        if has_dist:
+            dist_table = Table(title="[bold cyan]📦 Production Release Packages (dist/)[/bold cyan]", box=None, padding=(0, 2))
+            dist_table.add_column("Artifact", style="bold white")
+            dist_table.add_column("Type", style="magenta")
+            dist_table.add_column("Size", style="dim")
+
+            for item in sorted(os.listdir(dist_dir)):
+                item_path = os.path.join(dist_dir, item)
+                if os.path.isfile(item_path):
+                    sz = round(os.path.getsize(item_path) / 1024, 2)
+                    art_type = "Archive (.zip)" if item.endswith(".zip") else ("Config" if item.endswith((".yml", ".yaml", ".json")) else "Container")
+                    dist_table.add_row(f"🎁 dist/{item}", art_type, f"{sz} KB")
+                elif os.path.isdir(item_path):
+                    sub_count = len(os.listdir(item_path))
+                    dist_table.add_row(f"📁 dist/{item}/", "Directory", f"{sub_count} items")
+
+            self.console.print(Panel(dist_table, border_style="cyan", padding=(1, 2)))
+        else:
+            self.console.print(Panel(
+                "[yellow]ℹ️  Production packages (`dist/`) have not been compiled yet.[/yellow]\n"
+                "[dim]Source files are in workspace. Run 'Build & Export' to generate release archives, Dockerfile, and docs into dist/.[/dim]",
+                title="[bold yellow]Release Packaging[/bold yellow]",
+                border_style="yellow",
+                padding=(1, 2)
+            ))
+
+        # Show pipeline stats
         stats = self.state_mgr.state.stats
-        self.console.print(f"\n[dim]Requirements Total:[/dim] {stats.requirements_total} | [dim]Tasks Completed:[/dim] {stats.tasks_completed}/{stats.tasks_total} | [dim]Tests Passed:[/dim] {stats.tests_passed}/{stats.tests_total}")
-        Prompt.ask("\nPress Enter to return", default="")
+        self.console.print(f"\n[dim]Requirements Total:[/dim] {stats.requirements_total} | [dim]Tasks Completed:[/dim] {stats.tasks_completed}/{stats.tasks_total} | [dim]Tests Passed:[/dim] {stats.tests_passed}/{stats.tests_total}\n")
+
+        # Interactive Options inside Output View
+        self.console.print("[bold white]Actions:[/bold white] [1] Build & Export to dist/ now  [2] Return to Menu")
+        choice = Prompt.ask("Choose action", choices=["1", "2"], default="2")
+
+        if choice == "1":
+            self.console.print("\n[bold cyan]🚀 Building production packages and export artifacts...[/bold cyan]")
+            spec_parser = SpecParser(self.root_dir)
+            spec = spec_parser.parse() if spec_parser.has_specs() else None
+            builder = BuildEngine(self.root_dir, state_manager=self.state_mgr)
+            build_res = builder.build_and_export(spec=spec)
+
+            if build_res.success:
+                self.console.print(f"[bold green]✓ Build & Export successful! Generated {len(build_res.artifacts)} artifacts in dist/ ({build_res.elapsed_seconds}s)[/bold green]")
+                for art in build_res.artifacts:
+                    self.console.print(f"  • [bold white]{art.path}[/bold white] — [dim]{art.description}[/dim] ({round(art.size_bytes / 1024, 2)} KB)")
+            else:
+                self.console.print(f"[bold red]❌ Build failed: {build_res.error}[/bold red]")
+
+            Prompt.ask("\nPress Enter to return", default="")
+
 
     def _review_action(self) -> None:
-        """Handler for option 5: Review."""
+        """Handler for option 5: Review - Launches Reviewer Hub."""
         from cli.review_view import ReviewDashboard
         dashboard = ReviewDashboard(self.root_dir, console=self.console, state_manager=self.state_mgr)
-        dashboard.display_and_run()
-        Prompt.ask("\nPress Enter to return", default="")
+        dashboard.display_menu()
