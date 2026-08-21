@@ -1,36 +1,36 @@
-# Sistem Siap Pakai
+# System Readiness & Deployment Guide
 
-## Daftar Isi
-- [Deskripsi Singkat](#deskripsi-singkat)
-- [Fitur Utama](#fitur-utama)
-- [Cara Penggunaan](#cara-penggunaan)
+## Table of Contents
+- [Overview](#overview)
+- [Key Features](#key-features)
+- [Quick Start](#quick-start)
 
-## Deskripsi Singkat
-Sistem ini dirancang untuk membantu pengguna dalam berbagai tugas rutin dan kompleks. Dengan AI yang canggih, sistem ini dapat melakukan banyak pekerjaan manual dengan akurasi tinggi dan efisiensi yang luar biasa.
+## Overview
+This system is designed to orchestrate specification-driven AI pipelines. Powered by multi-model orchestration, it delivers high accuracy, automated validation, and local execution efficiency.
 
-## Fitur Utama
+## Key Features
 ### CLI Commands
-- `init`: Untuk memulai proyek baru.
-- `run`: Untuk menjalankan proses AI.
-- `status`: Untuk melihat status proyek saat ini.
+- `dinggo init`: Initialize a new project specification template.
+- `dinggo plan`: Generate and inspect the Directed Acyclic Task Graph.
+- `dinggo build`: Execute the full product factory lifecycle.
+- `dinggo test`: Run automated unit tests and closed-loop repairs.
+- `dinggo review`: Run independent code audit and review reports.
+- `dinggo status`: Inspect current project execution state.
 
-### UI
-- `dashboard`: Untuk melihat statistik dan laporan.
-- `settings`: Untuk mengatur preferensi pengguna.
+### Interactive Views
+- `dinggo interface`: Main TUI Product Factory Dashboard.
+- `dinggo wizard`: Interactive product specification generator.
 
-## Cara Penggunaan Singkat
-1. **Instalasi**: 
-   - Install dependencies dengan `pip install --upgrade pip setuptools wheel`.
-   - Instal proyek menggunakan `python setup.py install`.
+## Quick Start
+1. **Installation**:
+   - Create and activate virtual environment: `python -m venv .venv && .venv\Scripts\activate`.
+   - Install dependencies: `pip install -e .`.
 
-2. **Mulai Proyek**:
-   - Mulailah dengan membuat proyek baru: `kesiapan init <nama-proyek>`.
-   
-3. **Jalankan Proses**:
-   - Jalankan proses AI: `kesiapan run <proyek>`.
+2. **Initialize Project**:
+   - Generate default specification templates: `dinggo init`.
 
-4. **Lihat Status**:
-   - Lihat status proyek saat ini: `kesiapan status`.
+3. **Run Pipeline**:
+   - Build product end-to-end: `dinggo build`.
 
-## Penutup
-Sistem Siap Paku adalah solusi yang efisien dan handal untuk berbagai tugas rutin. Dengan dukungan AI, sistem ini dapat membantu Anda dalam mengelola pekerjaan dengan lebih baik dan lebih cepat. Teruskan penggunaan proyek ini untuk menemukan manfaatnya sendiri!
+4. **Verify State**:
+   - Check current state and task completion: `dinggo status`.

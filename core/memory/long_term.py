@@ -105,7 +105,7 @@ class LongTermMemory:
             files = self.code_graph.get("files", {})
 
         if not files:
-            return "Struktur file proyek tidak ditemukan."
+            return "Project file structure not found."
 
         selected_files = {}
         if target_scope:
@@ -119,7 +119,7 @@ class LongTermMemory:
             for path, info in list(files.items())[:max_files]:
                 selected_files[path] = info
 
-        lines = ["Struktur & Graph Proyek Aktif:"]
+        lines = ["Active Project Structure & Graph:"]
         for path, info in list(selected_files.items())[:max_files]:
             classes = ", ".join(info.get("classes", [])) or "None"
             funcs = ", ".join(info.get("functions", [])) or "None"

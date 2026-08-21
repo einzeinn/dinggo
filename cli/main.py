@@ -122,8 +122,8 @@ def _run_legacy_chat(working_dir: str):
     ollama_client = OllamaClient()
     if not ollama_client.is_available():
         ui.console.print(
-            "\n[bold red]❌ Gagal terhubung ke Ollama REST API![/bold red]\n"
-            "[yellow]Pastikan Ollama sudah berjalan (misal: 'ollama serve') di http://localhost:11434[/yellow]"
+            "\n[bold red]❌ Failed to connect to Ollama REST API![/bold red]\n"
+            "[yellow]Ensure Ollama is running (e.g. 'ollama serve') at http://localhost:11434[/yellow]"
         )
         sys.exit(1)
 
@@ -169,13 +169,13 @@ def _run_legacy_chat(working_dir: str):
     if missing_models:
         ui.render_missing_models_warning(missing_models)
 
-    ui.console.print("[dim]Ketik '/help' untuk melihat perintah slash, atau 'exit' untuk mengakhiri sesi.[/dim]")
+    ui.console.print("[dim]Type '/help' to see slash commands, or 'exit' to end session.[/dim]")
 
     while True:
         try:
             user_input = ui.get_user_prompt()
             if not user_input or user_input.lower() in ("exit", "keluar", "q"):
-                ui.console.print("[bold cyan]Sampai jumpa! Dinggo CLI selesai.[/bold cyan]")
+                ui.console.print("[bold cyan]Goodbye! Dinggo CLI finished.[/bold cyan]")
                 break
 
             # Handle Slash Commands (/help, /config, /models, /status, /memory, /clear, /compact)

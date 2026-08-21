@@ -2,95 +2,84 @@
 
 ## Overview
 
-Arsitektur 3-layer orkestrasi model, masing-masing spesialis di tugasnya, load
-bergantian (sequential, bukan concurrent) supaya muat di RAM 16GB.
+Dinggo employs a 3-layer model orchestration architecture, where each model specializes in a dedicated phase. Models are loaded sequentially rather than concurrently to fit within 16GB RAM hardware limits.
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────┐
-│  USER (terminal, Bahasa Indonesia casual)                     │
+│  USER (terminal, casual natural language)                   │
 └───────────────────────────┬─────────────────────────────────┘
                              ▼
 ┌─────────────────────────────────────────────────────────────┐
-│  LAYER 1 — Intent Parsing                                     │
-│  Model: Gemma-SEA-LION-V4.5-E2B-IT (Q4_K_M, 4.9GB)             │
-│  Tugas: parse prompt casual → structured intent (JSON)        │
+│  LAYER 1 — Intent Parsing                                   │
+│  Model: Gemma-SEA-LION-V4.5-E2B-IT (Q4_K_M)                 │
+│  Role: parse casual user prompt → structured JSON intent    │
 └───────────────────────────┬─────────────────────────────────┘
                              ▼
 ┌─────────────────────────────────────────────────────────────┐
-│  LAYER 2 — Planner / Orchestrator                              │
-│  Model: Qwen3.5-4B (thinking mode ON)                          │
-│  Tugas: reasoning, breakdown task jadi steps, tool-call         │
-│         decision, generate plan buat di-confirm user            │
+│  LAYER 2 — Planner / Orchestrator                           │
+│  Model: Qwen3.5-4B (thinking mode enabled)                  │
+│  Role: reasoning, task breakdown, DAG generation, tool plan │
 └───────────────────────────┬─────────────────────────────────┘
                              ▼
-                  [USER CONFIRM / REVISI]
+                  [USER CONFIRM / REVISE]
                              ▼
 ┌─────────────────────────────────────────────────────────────┐
-│  LAYER 3 — Executor                                             │
-│  Tool calls: read_file, write_file, list_dir, run_command       │
-│  Codegen delegate → Qwen2.5-Coder-3b (kalau step butuh          │
-│         generate kode Python presisi)                            │
+│  LAYER 3 — Executor & Codegen Delegate                      │
+│  Tool calls: read_file, write_file, list_dir, run_command   │
+│  Codegen delegate → Qwen2.5-Coder-3b (precise Python code)  │
 └─────────────────────────────────────────────────────────────┘
 ```
 
-## Kenapa 3 Model Terpisah (bukan 1 model besar)
+## Why 3 Specialized Models (Rather than 1 Monolith)
 
-- Tiap model dioptimalkan buat 1 tugas spesifik → hasil lebih presisi dibanding 1
-  model general yang disuruh multitasking
-- Total footprint tetap kecil karena load bergantian, bukan sekaligus
-- Modular: tiap layer bisa diganti model lain tanpa bongkar layer lain (lihat
-  `07-TechnicalDecisions.md` buat kriteria swap)
+- Each model is optimized for its specific task → higher quality and precision compared to a single general model multitasking.
+- Total memory footprint remains minimal because models load and execute sequentially.
+- Modular: any layer can swap to alternative models or providers via adapters without rewriting the rest of the system (see `07-TechnicalDecisions.md`).
 
-## Struktur Folder Project
+## Project Folder Structure
 
-```
-nameproject/
+```text
+dinggo/
 │
-├── docs/                    # dokumentasi (lihat template referensi)
+├── docs/                    # Technical documentation & architecture guides
 │
-├── core/                    # orkestrasi 3 layer model
+├── core/                    # 3-layer model orchestration and engine
 │   ├── intent_parser.py     # Layer 1 wrapper (Gemma-SEA-LION)
-│   ├── planner.py           # Layer 2 wrapper (Qwen3.5-4B)
-│   ├── executor.py          # Layer 3 — jalanin tool calls
-│   └── codegen.py           # delegate codegen (Qwen2.5-Coder-3b)
+│   ├── planner/             # Layer 2 wrapper (Qwen3.5-4B / Task Graph)
+│   ├── executor.py          # Layer 3 — step execution & validation
+│   ├── codegen.py           # Codegen delegate (Qwen2.5-Coder-3b)
+│   ├── memory/              # Short-term, long-term & Contextix memory
+│   └── sandbox/             # Execution sandboxing and security policies
 │
-├── tools/                   # implementasi tool-calling
-│   ├── file_ops.py          # read/write/list/edit file
-│   └── shell_ops.py         # run_command dengan safety guard
+├── tools/                   # Tool implementations
+│   ├── file_ops.py          # read, write, list, edit, diff, search
+│   └── shell_ops.py         # sandboxed run_command
 │
-├── cli/                     # entrypoint & UI terminal
+├── cli/                     # CLI entrypoints and terminal presentation
 │   ├── main.py
-│   └── ui.py                # rendering (rich/textual) — lihat 08-design.md
+│   ├── interface.py         # TUI Dashboard
+│   └── ui.py                # Rich console renderer
 │
 ├── config/
-│   └── models.yaml           # mapping layer → model name di Ollama
+│   └── models.yaml          # Layer-to-model configuration
 │
-├── .env                      # config env (base URL Ollama, dll)
+├── .env                     # Environment variables (Ollama URL, model overrides)
 ├── .env.example
 ├── README.md
-└── LICENSE
+└── pyproject.toml
 ```
-
-Catatan soal pemisahan frontend/backend: karena ini murni CLI (bukan web app),
-"frontend" digantikan `cli/` (presentation layer di terminal) dan "backend"
-digantikan `core/` + `tools/` (logic layer). Pemisahan tetap jelas secara modular,
-cuma penamaan disesuaikan konteks CLI, bukan web.
 
 ## Data Flow per Request
 
-1. User input ditangkap `cli/main.py`
-2. `core/intent_parser.py` panggil Gemma-SEA-LION via Ollama API → hasil JSON intent
-3. `core/planner.py` panggil Qwen3.5-4B, kasih intent + context project (root dir,
-   isi `docs/` kalau ada) → hasil: list of steps + tool calls yang direncanakan
-4. `cli/ui.py` render plan, tunggu confirm user
-5. Kalau confirm → `core/executor.py` iterasi tiap step:
-   - Kalau step = tool call langsung (read/write/run) → jalankan via `tools/`
-   - Kalau step = butuh codegen → delegate ke `core/codegen.py` (Qwen2.5-Coder-3b),
-     lalu hasil kode masuk ke `write_file`/`edit_file`
-6. Hasil akhir ditampilkan (diff, output, error jika ada)
+1. User input is captured in `cli/main.py` or `cli/interface.py`.
+2. `core/intent_parser.py` calls Gemma-SEA-LION via Ollama API → produces structured JSON intent.
+3. `core/planner/` calls Qwen3.5-4B with intent + project context (root dir, `.context/`, code graph) → generates DAG task plan.
+4. `cli/ui.py` renders the plan and pauses for user confirmation.
+5. Upon confirmation → `core/executor.py` executes each step:
+   - Tool calls (read/write/run) are dispatched via `tools/`.
+   - Steps requiring code generation delegate to `core/codegen.py` (Qwen2.5-Coder-3b), followed by semantic and syntax validation.
+6. Execution summary and diffs are rendered to the console.
 
 ## Model Loading Strategy
 
-Karena RAM terbatas, model di-load/unload per fase pakai Ollama (model otomatis
-unload dari memory setelah idle beberapa saat, atau bisa dipaksa lewat
-`ollama stop <model>` di antara fase kalau mau strict).
+To optimize VRAM and system memory, models are managed with Ollama (`keep_alive: 0` / eviction) during layer transitions, ensuring lightweight execution on consumer laptops and workstations.

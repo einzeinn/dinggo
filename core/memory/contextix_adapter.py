@@ -67,7 +67,7 @@ class ContextixAdapter:
     def run_generate(self) -> Dict[str, Any]:
         """Synchronously runs Contextix memory generation for active project working directory."""
         if not self.is_available():
-            return {"success": False, "error": "Modul / CLI 'contextix' tidak terpasang di environment."}
+            return {"success": False, "error": "Contextix module / CLI is not installed in the environment."}
 
         start_t = time.time()
 
@@ -123,12 +123,12 @@ class ContextixAdapter:
                 else:
                     last_error = res.stderr.strip() or res.stdout.strip() or f"Exit code {res.returncode}"
             except subprocess.TimeoutExpired:
-                last_error = f"Timeout setelah 35s saat menjalankan: {' '.join(cmd)}"
+                last_error = f"Timeout after 35s while running: {' '.join(cmd)}"
                 continue
             except Exception as ex:
                 last_error = str(ex)
 
-        return {"success": False, "error": f"Gagal menjalankan contextix generate: {last_error}"}
+        return {"success": False, "error": f"Failed to run contextix generate: {last_error}"}
 
     def refresh_post_execution(self, modified_files: Optional[List[str]] = None):
         """
@@ -168,18 +168,18 @@ class ContextixAdapter:
             return False
 
         if ui and hasattr(ui, "console"):
-            ui.console.print("\n[bold cyan]💡 Memori .context/ belum terdeteksi. Menjalankan 'contextix generate' otomatis...[/bold cyan]")
+            ui.console.print("\n[bold cyan]💡 Memory .context/ not detected. Running automatic 'contextix generate'...[/bold cyan]")
 
         res = self.run_generate()
         if res["success"]:
             self.state = ContextState.CLEAN
             if ui and hasattr(ui, "console"):
-                ui.console.print(f"[bold green]✓ Memori Contextix berhasil dibuat otomatis ({res['elapsed']}s).[/bold green]\n")
+                ui.console.print(f"[bold green]✓ Contextix memory generated successfully ({res['elapsed']}s).[/bold green]\n")
             return True
         else:
             self.state = ContextState.DIRTY
             if ui and hasattr(ui, "console"):
-                ui.console.print(f"[dim yellow]⚠️ Contextix auto-generate lewati: {res.get('error')}[/dim yellow]\n")
+                ui.console.print(f"[dim yellow]⚠️ Contextix auto-generate skipped: {res.get('error')}[/dim yellow]\n")
             return False
 
     def _get_current_mtime(self) -> float:
@@ -314,7 +314,7 @@ class ContextixAdapter:
             f"Context Memory State: {self.state.value}"
         ]
         if completed_actions:
-            state_lines.append("Aksi Terakhir: " + ", ".join(completed_actions[-3:]))
+            state_lines.append("Last Actions: " + ", ".join(completed_actions[-3:]))
         return "\n".join(state_lines)
 
     def build_recovery_guide(

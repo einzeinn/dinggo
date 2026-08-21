@@ -25,7 +25,7 @@ class TestSemanticValidator(unittest.TestCase):
         )
         res_a = self.validator.validate_file("docs/README.md", content=python_leak)
         self.assertFalse(res_a["valid"])
-        self.assertIn("terdeteksi berisi kode script Python", res_a["reason"])
+        self.assertIn("contains Python script constructs", res_a["reason"])
 
         # Case B: Clean Markdown (VALID)
         clean_md = (

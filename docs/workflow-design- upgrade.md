@@ -2,9 +2,9 @@
 
 ## 1. Workflow Overview
 
-Dinggo menggunakan **interactive CLI interface** sebagai antarmuka utama untuk developer.
+Dinggo uses an **interactive CLI interface** as its primary interface for developers.
 
-Workflow utama:
+Core Workflow:
 
 ```text
 Terminal
@@ -23,7 +23,7 @@ Dinggo Interface
    └── Exit
 ```
 
-Dinggo tetap menyediakan command-level interface untuk automation dan CI/CD.
+Dinggo also provides direct command-level interfaces for automation and CI/CD pipelines.
 
 ```text
 Interactive CLI
@@ -39,19 +39,19 @@ Direct CLI Commands
 
 # 2. Entry Point
 
-Developer masuk ke project:
+Developer enters the project directory:
 
 ```bash
 cd my-project
 ```
 
-Kemudian menjalankan:
+Then executes:
 
 ```bash
 dinggo interface
 ```
 
-Dinggo melakukan initial environment detection.
+Dinggo performs initial environment detection.
 
 ```text
 DINGGO PRODUCT FACTORY
@@ -71,7 +71,7 @@ Detecting...
 Loading project...
 ```
 
-Setelah initialization selesai, Dinggo membuka main interface.
+Once initialization completes, Dinggo opens the main interface.
 
 ---
 
@@ -93,7 +93,7 @@ Setelah initialization selesai, Dinggo membuka main interface.
 ╰────────────────────────────────────────╯
 ```
 
-Menu merupakan entry point utama seluruh workflow.
+The menu serves as the primary entrypoint for the entire workflow.
 
 ---
 
@@ -246,7 +246,7 @@ Available Models:
 
 Konfigurasi disimpan secara otomatis.
 
-User tidak perlu memasukkan environment variable secara manual.
+Users do not need to manually configure environment variables.
 
 ---
 
@@ -527,7 +527,7 @@ Total:
 
 # 13. Automatic Repair Workflow
 
-Jika test gagal:
+If tests fail:
 
 ```text
 TEST FAILURE
@@ -573,7 +573,7 @@ Repair Cycle:
 1/3
 ```
 
-Jika seluruh cycle gagal:
+If all retry cycles fail:
 
 ```text
 REPAIR FAILED
@@ -811,7 +811,7 @@ Default:
 Codex
 ```
 
-Review provider tidak menjadi dependency Dinggo.
+The reviewer provider is decoupled from Dinggo core dependencies.
 
 Review Engine menggunakan adapter.
 
@@ -1275,7 +1275,7 @@ Interactive CLI untuk manusia, direct CLI untuk automation.
 
 ### 7. Recoverable
 
-Failure tidak otomatis berarti seluruh pipeline dimulai dari awal.
+Failures do not require restarting the entire pipeline from scratch.
 
 ### 8. Traceable
 

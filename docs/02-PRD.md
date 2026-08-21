@@ -1,76 +1,72 @@
 # 02 - Product Requirements Document
 
-## Ringkasan
+## Summary
 
-CLI IDE lokal dengan orkestrasi 3 model (intent parsing, planning/tool-calling,
-codegen) yang menjalankan flow: **nalar → plan → confirm user → eksekusi**.
+A local CLI IDE and Product Factory orchestrating 3 models (intent parsing, planning/task-graphing, codegen) that executes the core loop: **reason → plan → user confirm → execute**.
 
 ## User Flow (Core Loop)
 
-```
-$ cd nameproject/
-$ [namaproject]           # masuk ke CLI IDE
-> [user kasih prompt bahasa natural/casual]
-  → [Layer 1: Intent Parsing] parse maksud user
-  → [Layer 2: Planner] reasoning + susun plan bertahap
-  → tampilkan plan ke user
-> [user confirm / revisi plan]
-  → [Layer 3: Executor] jalankan tool calls sesuai plan
-  → tampilkan hasil (diff, output command, dll)
+```text
+$ cd myproject/
+$ dinggo                  # Launch CLI IDE
+> [user enters casual or natural language prompt]
+  → [Layer 1: Intent Parsing] parses user intent into structured JSON
+  → [Layer 2: Planner] reasons & builds step-by-step DAG plan
+  → displays plan to user
+> [user confirms or provides revisions]
+  → [Layer 3: Executor] executes sandboxed tool calls according to plan
+  → displays results (diff, command output, etc.)
 ```
 
-## Fitur Inti (v1 — MVP)
+## Core Features (v1 — MVP)
 
 ### F1. Intent Parsing
-- Terima prompt bahasa natural (termasuk Bahasa Indonesia casual/slang)
-- Convert ke structured request (task type, target file/scope, constraint)
+- Accepts natural language instructions (including casual Indonesian & English)
+- Converts input into structured requests (task type, target file/scope, constraints)
 
 ### F2. Reasoning & Planning
-- Model reasoning dengan thinking mode buat breakdown task jadi langkah-langkah
-- Plan ditampilkan dalam format list yang jelas (numbered steps, target file per step)
-- **Wajib berhenti di sini** menunggu confirm dari user — tidak boleh auto-execute
+- Reasoning model with thinking mode to break down tasks into discrete steps
+- Formats plans clearly (numbered steps, action type, target file per step)
+- **Mandatory pause**: awaits user confirmation before executing state-modifying actions
 
-### F3. Confirm / Revisi Plan
-- User bisa: `yes` (lanjut eksekusi), `no` (batal), atau kasih revisi teks bebas
-  (plan di-generate ulang dengan masukan revisi)
+### F3. Plan Confirmation & Revision
+- User options: `[Y] Execute`, `[N] Cancel`, or `[R] Revise` with free-form text feedback (re-generates plan incorporating feedback)
 
-### F4. Tool Calling & Eksekusi
-Tools minimal yang harus tersedia di v1:
+### F4. Tool Calling & Execution
+Minimum tools available in v1:
 - `read_file(path)`
 - `write_file(path, content)`
 - `list_dir(path)`
-- `run_command(cmd)` — dengan whitelist/confirmation buat command yang destructive
-- `edit_file(path, diff)` — tampilkan diff dulu sebelum apply
+- `run_command(cmd)` — sandboxed execution with confirmation for destructive commands
+- `edit_file(path, diff)` — applies SEARCH/REPLACE blocks with atomic fallback
 
 ### F5. Codegen Delegation
-- Step plan yang butuh generate kode Python dilempar ke model codegen khusus
-  (bukan model planner) — lihat `06-Architecture.md`
+- Plan steps requiring Python code generation are delegated to a dedicated codegen model (see `06-Architecture.md`)
 
-### F6. Session/Context Awareness
-- CLI tahu root folder project saat ini (working directory)
-- (Opsional v1, wajib v1.1) baca `docs/` project kalau ada, buat konteks tambahan
+### F6. Session & Context Awareness
+- Aware of current project root (working directory)
+- Contextix memory adapter (`.context/`) injects project constraints, decisions, and knowledge graphs
 
-## Fitur Non-Inti (Nice to Have, bukan v1)
+## Non-Core Features (Post-v1)
 
-- History/replay session sebelumnya
-- Multi-language support (selain Python)
-- Auto-dokumentasi (auto-update `docs/12-Changelog.md`) berdasarkan RFC-001
+- Session history / replay
+- Multi-language runtime support (beyond Python)
+- Automated changelog generator based on RFC-001
 
 ## Out of Scope (v1)
 
-- Remote/cloud model fallback
+- Remote / cloud model fallback
 - Multi-user / auth
-- GUI
+- GUI editor
 
-## Constraint Teknis
+## Technical Constraints
 
-- Harus jalan di RAM 16GB, CPU-only (Ryzen 5 6600), tanpa GPU discrete
-- Model dijalankan lewat Ollama, load bergantian per fase (bukan concurrent)
-- Bahasa implementasi: Python
+- Operates within 16GB RAM constraints (CPU / integrated GPU support)
+- Models orchestrated via Ollama with sequential layer transitions (`keep_alive: 0`)
+- Implementation language: Python
 
-## Metrik Keberhasilan (kualitatif, v1 personal project)
+## Success Metrics
 
-- Plan yang dihasilkan masuk akal & actionable (subjektif, judged by user)
-- Tidak ada eksekusi tanpa confirm (0 toleransi — ini safety requirement, bukan preferensi)
-- Total waktu dari prompt → plan tampil masih terasa responsif (bukan hard target angka,
-  tapi jangan sampai bikin frustrasi nunggu)
+- Generated plans are clear, actionable, and adhere to project architecture
+- Strict zero-tolerance for unconfirmed plan execution (safety requirement)
+- Fast and responsive prompt-to-plan generation

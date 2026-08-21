@@ -350,25 +350,25 @@ class TerminalUI:
     def render_missing_models_warning(self, missing_models: List[str]):
         """Displays friendly warning box for missing local Ollama models."""
         table = Table(show_header=True, header_style="bold yellow", box=None, expand=True)
-        table.add_column("Model Dikonfigurasi", style="bold red", width=25)
-        table.add_column("Perintah Instalasi (Jalankan di Terminal)", style="bold green")
+        table.add_column("Configured Model", style="bold red", width=25)
+        table.add_column("Installation Command (Run in Terminal)", style="bold green")
 
         for m in missing_models:
             table.add_row(m, f"ollama pull {m}")
 
         self.console.print(Panel(
             table,
-            title="[bold yellow]⚠️ Perhatian: Beberapa Model Ollama Belum Terdeteksi[/bold yellow]",
+            title="[bold yellow]⚠️ Notice: Required Ollama Models Not Detected[/bold yellow]",
             border_style="yellow",
-            subtitle="[dim]Jalankan perintah 'ollama pull' di atas agar model dapat digunakan[/dim]"
+            subtitle="[dim]Run 'ollama pull <model>' above to use these models[/dim]"
         ))
 
     def render_memory_status(self, context_info: Dict[str, Any], short_memory_str: str, graph_info_str: str):
         """Displays project memory details and storage location."""
         info_text = (
-            f"[bold yellow]Proyek:[/bold yellow] [green]{context_info.get('project_name')}[/green] ({context_info.get('project_hash')})\n"
-            f"[bold yellow]Lokasi Simpanan Memori Global:[/bold yellow] [dim]{context_info.get('storage_dir')}[/dim]\n\n"
-            f"[bold cyan]🧠 Short-Term Memory (Riwayat Percakapan Terakhir):[/bold cyan]\n"
+            f"[bold yellow]Project:[/bold yellow] [green]{context_info.get('project_name')}[/green] ({context_info.get('project_hash')})\n"
+            f"[bold yellow]Global Memory Storage:[/bold yellow] [dim]{context_info.get('storage_dir')}[/dim]\n\n"
+            f"[bold cyan]🧠 Short-Term Memory (Recent Conversation History):[/bold cyan]\n"
             f"{short_memory_str}\n\n"
             f"[bold magenta]🕸️ Long-Term Memory (Code Knowledge Graph & Embeddings):[/bold magenta]\n"
             f"{graph_info_str}"
@@ -382,7 +382,7 @@ class TerminalUI:
     def render_contextix_status(self, ctx_status: Dict[str, Any]):
         """Displays Contextix project memory integration dashboard."""
         avail_str = "[bold green]ONLINE ✅[/bold green]" if ctx_status.get("available") else "[bold red]NOT INSTALLED ❌[/bold red]"
-        ctx_str = "[bold green]TERBENTUK ✅[/bold green]" if ctx_status.get("has_context") else "[bold yellow]BELUM ADA ⚠️[/bold yellow]"
+        ctx_str = "[bold green]CREATED ✅[/bold green]" if ctx_status.get("has_context") else "[bold yellow]NOT FOUND ⚠️[/bold yellow]"
         
         state_val = ctx_status.get("state", "CLEAN")
         state_badges = {
@@ -394,13 +394,13 @@ class TerminalUI:
 
         info_text = (
             f"[bold yellow]Contextix CLI Status:[/bold yellow] {avail_str}\n"
-            f"[bold yellow]State Sync Memori RAM:[/bold yellow] {state_badge}\n"
-            f"[bold yellow]Status Memori .context/:[/bold yellow] {ctx_str} ([dim]{ctx_status.get('context_dir')}[/dim])\n"
-            f"[bold yellow]Nama Proyek (Contextix):[/bold yellow] [green]{ctx_status.get('project_name')}[/green]\n"
-            f"[bold yellow]Keputusan Terdaftar (Decisions):[/bold yellow] [cyan]{ctx_status.get('decisions_count')} keputusan[/cyan]\n"
-            f"[bold yellow]Batasan Proyek (Constraints):[/bold yellow] [magenta]{ctx_status.get('constraints_count')} hard rules[/magenta]\n"
-            f"[bold yellow]File Bootstrap / YAML:[/bold yellow] [white]bootstrap.md ({'✅' if ctx_status.get('bootstrap_exists') else '❌'}) | context.yaml ({'✅' if ctx_status.get('yaml_exists') else '❌'})[/white]\n\n"
-            f"[dim cyan]💡 Tip: Ketik '/contextix generate' untuk memperbarui memori snapshot proyek.[/dim cyan]"
+            f"[bold yellow]RAM Memory Sync State:[/bold yellow] {state_badge}\n"
+            f"[bold yellow]Memory Status (.context/):[/bold yellow] {ctx_str} ([dim]{ctx_status.get('context_dir')}[/dim])\n"
+            f"[bold yellow]Project Name (Contextix):[/bold yellow] [green]{ctx_status.get('project_name')}[/green]\n"
+            f"[bold yellow]Decisions Registered:[/bold yellow] [cyan]{ctx_status.get('decisions_count')} decisions[/cyan]\n"
+            f"[bold yellow]Project Constraints:[/bold yellow] [magenta]{ctx_status.get('constraints_count')} hard rules[/magenta]\n"
+            f"[bold yellow]Bootstrap / YAML Files:[/bold yellow] [white]bootstrap.md ({'✅' if ctx_status.get('bootstrap_exists') else '❌'}) | context.yaml ({'✅' if ctx_status.get('yaml_exists') else '❌'})[/white]\n\n"
+            f"[dim cyan]💡 Tip: Type '/contextix generate' to update project memory snapshot.[/dim cyan]"
         )
         self.console.print(Panel(
             Text.from_markup(info_text),
@@ -411,37 +411,37 @@ class TerminalUI:
     def render_help(self):
         """Displays interactive Slash Commands & Settings Help Menu."""
         table = Table(show_header=True, header_style="bold cyan", box=None, expand=True)
-        table.add_column("Perintah / Slash Command", style="bold yellow", width=22)
-        table.add_column("Keterangan & Fungsi", style="white")
+        table.add_column("Command / Slash Command", style="bold yellow", width=24)
+        table.add_column("Description & Purpose", style="white")
 
-        table.add_row("/help, /?", "Menampilkan daftar perintah slash & bantuan ini")
-        table.add_row("/config, /settings", "Melihat & mengonfigurasi pengaturan aktif (Model, Temp, GPU, Thread)")
-        table.add_row("/models", "Daftar model Ollama lokal & pemetaan layer aktif")
-        table.add_row("/memory", "Melihat status memori proyek (Short-term & Code Graph)")
-        table.add_row("/contextix, /context", "Status & manajemen memori Contextix (.context/ generate/status)")
-        table.add_row("/status", "Melihat status lingkungan (Git branch, Ollama, GPU offload)")
-        table.add_row("/clear", "Membersihkan riwayat percakapan short-term & layar terminal")
-        table.add_row("/compact", "Meringkas (compact) riwayat memori percakapan")
-        table.add_row("/exit, exit, keluar", "Keluar dari sesi Dinggo CLI IDE")
+        table.add_row("/help, /?", "Show this list of slash commands and help menu")
+        table.add_row("/config, /settings", "View & configure active settings (Model, Temp, GPU, Thread)")
+        table.add_row("/models", "List local Ollama models & active layer mappings")
+        table.add_row("/memory", "View project memory status (Short-term & Code Graph)")
+        table.add_row("/contextix, /context", "Contextix memory status & management (.context/ generate/status)")
+        table.add_row("/status", "View environment status (Git branch, Ollama, GPU offload)")
+        table.add_row("/clear", "Clear short-term conversation history & terminal screen")
+        table.add_row("/compact", "Compact short-term conversation memory history")
+        table.add_row("/exit, exit, quit", "Exit Dinggo CLI session")
 
         self.console.print(Panel(
             table,
-            title="[bold cyan]💡 Menu Perintah & Slash Commands Dinggo CLI[/bold cyan]",
+            title="[bold cyan]💡 Dinggo CLI Commands & Slash Menu[/bold cyan]",
             border_style="cyan"
         ))
 
     def render_config(self, config_dict: Dict[str, Any]):
         """Displays active configuration table."""
         table = Table(show_header=True, header_style="bold yellow", box=None, expand=True)
-        table.add_column("Parameter Konfigurasi", style="bold cyan", width=30)
-        table.add_column("Nilai Aktif", style="bold green")
+        table.add_column("Configuration Parameter", style="bold cyan", width=30)
+        table.add_column("Active Value", style="bold green")
 
         for key, val in config_dict.items():
             table.add_row(key, str(val))
 
         self.console.print(Panel(
             table,
-            title="[bold yellow]⚙️ Pengaturan & Konfigurasi Aktif (.env)[/bold yellow]",
+            title="[bold yellow]⚙️ Active Configuration Settings (.env)[/bold yellow]",
             border_style="yellow"
         ))
 
@@ -449,29 +449,29 @@ class TerminalUI:
         """Displays installed Ollama models and active layer assignments."""
         table = Table(show_header=True, header_style="bold magenta", box=None, expand=True)
         table.add_column("Layer Orchestration", style="bold yellow", width=22)
-        table.add_column("Model Aktif Termanfaatkan", style="bold cyan")
+        table.add_column("Active Utilized Model", style="bold cyan")
 
         for layer, model in active_models.items():
             table.add_row(layer, model)
 
-        installed_str = ", ".join([f"[green]{m}[/green]" for m in installed_models]) if installed_models else "[red]Tidak ada model terdeteksi[/red]"
+        installed_str = ", ".join([f"[green]{m}[/green]" for m in installed_models]) if installed_models else "[red]No models detected[/red]"
         
         self.console.print(Panel(
             table,
-            title="[bold magenta]🤖 Status Model LLM & Alokasi Layer[/bold magenta]",
+            title="[bold magenta]🤖 LLM Model Status & Layer Allocations[/bold magenta]",
             border_style="magenta",
-            subtitle=f"[dim]Total {len(installed_models)} Model Tersedia[/dim]"
+            subtitle=f"[dim]Total {len(installed_models)} Models Available[/dim]"
         ))
 
     def render_status(self, status_dict: Dict[str, Any]):
         """Displays environment & system status dashboard."""
         status_text = (
-            f"[bold yellow]Direktori Kerja (Root):[/bold yellow] [green]{status_dict.get('working_dir')}[/green]\n"
+            f"[bold yellow]Working Directory (Root):[/bold yellow] [green]{status_dict.get('working_dir')}[/green]\n"
             f"[bold yellow]Git Branch:[/bold yellow] [cyan]{status_dict.get('git_branch')}[/cyan]\n"
             f"[bold yellow]Ollama Service Status:[/bold yellow] [{'green' if status_dict.get('ollama_online') else 'red'}]{'ONLINE ✅' if status_dict.get('ollama_online') else 'OFFLINE ❌'}[/{'green' if status_dict.get('ollama_online') else 'red'}] ({status_dict.get('ollama_url')})\n"
             f"[bold yellow]GPU Offload Layers:[/bold yellow] [magenta]num_gpu = {status_dict.get('gpu_offload')}[/magenta]\n"
             f"[bold yellow]CPU Thread Limit:[/bold yellow] [magenta]num_thread = {status_dict.get('cpu_threads')}[/magenta]\n"
-            f"[bold yellow]Riwayat Short-Term Memory:[/bold yellow] [cyan]{status_dict.get('memory_turns')} turn terdaftar[/cyan]"
+            f"[bold yellow]Short-Term Memory History:[/bold yellow] [cyan]{status_dict.get('memory_turns')} turns registered[/cyan]"
         )
         self.console.print(Panel(
             Text.from_markup(status_text),

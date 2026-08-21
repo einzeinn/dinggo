@@ -134,7 +134,7 @@ class Executor:
                     target_path=target_path
                 )
                 if not cg_res["success"]:
-                    result["error"] = f"Gagal generate konten: {cg_res['error']}"
+                    result["error"] = f"Failed to generate content: {cg_res['error']}"
                     return result
                 code_content = cg_res["code"]
 

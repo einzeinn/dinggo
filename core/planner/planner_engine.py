@@ -174,7 +174,7 @@ class Planner:
             )
 
             if not res["success"]:
-                last_error = res.get("error", "Gagal menghubungi Ollama Planner")
+                last_error = res.get("error", "Failed to contact Ollama Planner")
                 continue
 
             raw_response = res["response"]
@@ -205,7 +205,7 @@ class Planner:
 
         return {
             "success": False,
-            "error": f"Planner gagal menghasilkan JSON valid setelah {self.max_retries} percobaan. Detail: {last_error}",
+            "error": f"Planner failed to generate valid JSON after {self.max_retries} attempts. Detail: {last_error}",
             "plan": None
         }
 

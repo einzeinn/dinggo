@@ -180,13 +180,13 @@ class OllamaClient:
             }
         except httpx.HTTPStatusError as e:
             installed = self.list_installed_models()
-            avail_str = ", ".join(installed) if installed else "tidak ada"
+            avail_str = ", ".join(installed) if installed else "none"
             return {
                 "success": False,
-                "error": f"Ollama HTTP {e.response.status_code} ({resolved_model}): {e.response.text}\nModel yang tersedia di Ollama: [{avail_str}]"
+                "error": f"Ollama HTTP {e.response.status_code} ({resolved_model}): {e.response.text}\nAvailable models in Ollama: [{avail_str}]"
             }
         except Exception as e:
-            return {"success": False, "error": f"Gagal menghubungi Ollama ({resolved_model}): {str(e)}"}
+            return {"success": False, "error": f"Failed to connect to Ollama ({resolved_model}): {str(e)}"}
 
     def get_embedding(self, text: str, model: Optional[str] = None) -> List[float]:
         """Generates vector embedding for text using Ollama /api/embeddings or /api/embed."""

@@ -49,16 +49,16 @@ class SlashCommandHandler:
             if self.contextix_adapter:
                 subcmd = parts[1] if len(parts) > 1 else "status"
                 if subcmd in ("generate", "gen", "update", "run"):
-                    self.ui.console.print("\n[bold cyan]🔄 Menjalankan 'contextix generate' untuk memperbarui memori proyek...[/bold cyan]")
+                    self.ui.console.print("\n[bold cyan]🔄 Running 'contextix generate' to update project memory...[/bold cyan]")
                     res = self.contextix_adapter.run_generate()
                     if res["success"]:
-                        self.ui.console.print(f"[bold green]✓ Contextix generate selesai dalam {res['elapsed']}s.[/bold green]")
+                        self.ui.console.print(f"[bold green]✓ Contextix generate completed in {res['elapsed']}s.[/bold green]")
                     else:
-                        self.ui.console.print(f"[bold red]❌ Contextix generate gagal:[/bold red] {res.get('error')}")
+                        self.ui.console.print(f"[bold red]❌ Contextix generate failed:[/bold red] {res.get('error')}")
                 else:
                     self.ui.render_contextix_status(self.contextix_adapter.get_status())
             else:
-                self.ui.console.print("[yellow]Modul ContextixAdapter belum diinisialisasi.[/yellow]")
+                self.ui.console.print("[yellow]ContextixAdapter module is not initialized.[/yellow]")
             return True
 
         elif main_cmd in ("/config", "/settings", "config", "settings"):
@@ -111,7 +111,7 @@ class SlashCommandHandler:
             # Clear console screen
             os.system("cls" if os.name == "nt" else "clear")
             self.ui.render_banner(self.context.working_dir)
-            self.ui.console.print("[bold yellow]🧹 Short-Term Memory & Terminal Screen telah dibersihkan.[/bold yellow]")
+            self.ui.console.print("[bold yellow]🧹 Short-Term Memory & Terminal Screen have been cleared.[/bold yellow]")
             return True
 
         elif main_cmd in ("/compact", "compact"):
@@ -122,15 +122,15 @@ class SlashCommandHandler:
                     {
                         "prompt": "Compact Memory Summary",
                         "category": "TASK",
-                        "summary": f"Ringkasan riwayat sebelumnya ({len(self.short_memory.history)-2} turn).",
+                        "summary": f"Summary of previous history ({len(self.short_memory.history)-2} turns).",
                         "target_scope": [],
-                        "execution_summary": "Riwayat percakapan sebelumnya disingkat."
+                        "execution_summary": "Previous conversation history was compacted."
                     }
                 ] + latest
                 self.short_memory.save()
-                self.ui.console.print("[bold green]📦 Short-Term Memory berhasil diringkas (compacted).[/bold green]")
+                self.ui.console.print("[bold green]📦 Short-Term Memory successfully compacted.[/bold green]")
             else:
-                self.ui.console.print("[dim]Riwayat percakapan masih pendek (tidak perlu ringkas).[/dim]")
+                self.ui.console.print("[dim]Conversation history is still short (no compaction needed).[/dim]")
             return True
 
         return False

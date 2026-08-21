@@ -1,9 +1,6 @@
-# Dinggo CLI IDE — Overview
+# Dinggo AI Product Factory — Overview
 
-Local CLI IDE personal yang berjalan 100% offline dengan orkestrasi 3 model AI via Ollama.
-
-## Goals
-- Not detected yet.
+Specification-driven AI Product Factory and CLI IDE operating 100% offline via local Ollama 3-layer LLM orchestration.
 
 ## Tech Stack
 - Python
@@ -17,21 +14,16 @@ Local CLI IDE personal yang berjalan 100% offline dengan orkestrasi 3 model AI v
 - rich
 
 ## Architecture Patterns
-- Not detected yet.
-
-## Decisions
-- Not detected yet.
-
-## Domain Concepts
-- Not detected yet.
-
-## Roadmap
-- Dinggo memperbarui Short-Term Memory & Code Graph internal.
+- 3-Layer LLM Orchestration (Intent -> Planner -> Codegen/Executor)
+- DAG Multi-worker Task Scheduling
+- Semantic & Syntax AST Validation
+- Multi-tier Automated Testing with Closed-Loop Self-Repair
+- Requirement Traceability Matrix Verification
+- Release Packaging & Build Engine
+- Independent Review Engine & Security Audit
+- Minimal Execution Sandboxing
 
 ## Project State
-Version: 0.1.0
-Current phase: Unspecified
-Active priority: Unspecified
-Recommended next steps:
-- Not detected yet.
-- Not detected yet.
+Version: 0.3.0
+Current phase: Production Ready
+Active priority: High

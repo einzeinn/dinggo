@@ -12,17 +12,17 @@ def read_file(path: str) -> Dict[str, Any]:
     """
     abs_path = os.path.abspath(path)
     if not os.path.exists(abs_path):
-        return {"success": False, "error": f"File tidak ditemukan: {path}", "content": ""}
+        return {"success": False, "error": f"File not found: {path}", "content": ""}
     
     if os.path.isdir(abs_path):
-        return {"success": False, "error": f"Path adalah direktori, bukan file: {path}", "content": ""}
+        return {"success": False, "error": f"Path is a directory, not a file: {path}", "content": ""}
 
     try:
         with open(abs_path, "r", encoding="utf-8") as f:
             content = f.read()
         return {"success": True, "path": abs_path, "content": content}
     except Exception as e:
-        return {"success": False, "error": f"Gagal membaca file: {str(e)}", "content": ""}
+        return {"success": False, "error": f"Failed to read file: {str(e)}", "content": ""}
 
 
 def write_file(path: str, content: str) -> Dict[str, Any]:
@@ -36,7 +36,7 @@ def write_file(path: str, content: str) -> Dict[str, Any]:
             f.write(content)
         return {"success": True, "path": abs_path, "bytes_written": len(content.encode("utf-8"))}
     except Exception as e:
-        return {"success": False, "error": f"Gagal menulis file {path}: {str(e)}"}
+        return {"success": False, "error": f"Failed to write file {path}: {str(e)}"}
 
 
 def list_dir(path: str = ".") -> Dict[str, Any]:
@@ -45,10 +45,10 @@ def list_dir(path: str = ".") -> Dict[str, Any]:
     """
     abs_path = os.path.abspath(path)
     if not os.path.exists(abs_path):
-        return {"success": False, "error": f"Direktori tidak ditemukan: {path}", "items": []}
+        return {"success": False, "error": f"Directory not found: {path}", "items": []}
     
     if not os.path.isdir(abs_path):
-        return {"success": False, "error": f"Path bukan direktori: {path}", "items": []}
+        return {"success": False, "error": f"Path is not a directory: {path}", "items": []}
 
     try:
         items = []
@@ -58,7 +58,7 @@ def list_dir(path: str = ".") -> Dict[str, Any]:
             items.append({"name": item, "is_dir": is_dir, "path": item_path})
         return {"success": True, "path": abs_path, "items": items}
     except Exception as e:
-        return {"success": False, "error": f"Gagal membuka direktori {path}: {str(e)}", "items": []}
+        return {"success": False, "error": f"Failed to open directory {path}: {str(e)}", "items": []}
 
 
 def get_unified_diff(path: str, old_content: str, new_content: str) -> str:
@@ -180,7 +180,7 @@ def edit_file(path: str, new_content: str) -> Dict[str, Any]:
             return {
                 "success": False,
                 "path": abs_path,
-                "error": f"Gagal menerapkan SEARCH/REPLACE block: {sr_res['error']}",
+                "error": f"Failed to apply SEARCH/REPLACE block: {sr_res['error']}",
                 "original_content": old_content
             }
         final_content = sr_res["content"]
@@ -213,7 +213,7 @@ def search_code(query: str, root_dir: str = ".", max_results: int = 50) -> Dict[
     """
     query = query.strip()
     if not query:
-        return {"success": False, "error": "Query pencarian tidak boleh kosong.", "output": ""}
+        return {"success": False, "error": "Search query cannot be empty.", "output": ""}
 
     abs_root = os.path.abspath(root_dir)
     ignored_dirs = {".git", ".venv", "venv", "node_modules", "build", "dist", "__pycache__", ".context", "dinggo.egg-info"}
@@ -271,7 +271,7 @@ def search_code(query: str, root_dir: str = ".", max_results: int = 50) -> Dict[
 
     if results:
         return {"success": True, "query": query, "matches": len(results), "output": "\n".join(results)}
-    return {"success": True, "query": query, "matches": 0, "output": f"Tidak ditemukan kecocokan untuk: '{query}'"}
+    return {"success": True, "query": query, "matches": 0, "output": f"No matches found for: '{query}'"}
 
 
 def view_outline(path: str) -> Dict[str, Any]:
@@ -281,13 +281,13 @@ def view_outline(path: str) -> Dict[str, Any]:
     """
     abs_path = os.path.abspath(path)
     if not os.path.exists(abs_path):
-        return {"success": False, "error": f"File tidak ditemukan: {path}", "output": ""}
+        return {"success": False, "error": f"File not found: {path}", "output": ""}
 
     try:
         with open(abs_path, "r", encoding="utf-8") as f:
             source = f.read()
     except Exception as e:
-        return {"success": False, "error": f"Gagal membaca file {path}: {str(e)}", "output": ""}
+        return {"success": False, "error": f"Failed to read file {path}: {str(e)}", "output": ""}
 
     try:
         tree = ast.parse(source, filename=path)
@@ -299,7 +299,7 @@ def view_outline(path: str) -> Dict[str, Any]:
             "line": syn_err.lineno or 1,
             "column": syn_err.offset or 1,
             "message": syn_err.msg,
-            "output": f"SyntaxError di {path} baris {syn_err.lineno}: {syn_err.msg}"
+            "output": f"SyntaxError in {path} at line {syn_err.lineno}: {syn_err.msg}"
         }
     except Exception as ex:
         return {"success": False, "error": str(ex), "output": ""}

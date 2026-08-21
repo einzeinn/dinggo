@@ -1,8 +1,7 @@
 project:
-  name: Dinggo CLI IDE
-  description: Local CLI IDE personal yang berjalan 100% offline dengan orkestrasi
-    3 model AI via Ollama.
-  version: 0.6.0
+  name: Dinggo AI Product Factory
+  description: Specification-driven AI Product Factory and CLI IDE operating 100% offline via local Ollama 3-layer LLM orchestration.
+  version: 0.3.0
 vision: ''
 goals: []
 tech_stack:
@@ -15,24 +14,24 @@ tech_stack:
 - python-dotenv
 - pyyaml
 - rich
-architecture: '- Executor & Codegen (Layer 3): Menjalankan tool calls (read/write/list/edit)
-  & pemrosesan kode Python presisi.'
+architecture: '- Layer 1: Intent Parser (Gemma-SEA-LION)
+  - Layer 2: Planner & DAG Engine (Qwen3.5-4B)
+  - Layer 3: Executor & Codegen Delegate (Qwen2.5-Coder-3b)
+  - Multi-tier testing, semantic validation, and execution sandboxing.'
 architecture_patterns: []
 constraints: []
 non_goals:
-- Bukan produk multi-user / SaaS
-- Bukan replacement penuh untuk Claude Code/Codex di task yang butuh reasoning sangat
-  berat — [NamaProject] optimal di task medium yang bisa di-breakdown jelas
-- Bukan IDE visual (GUI/editor) — murni CLI/TUI di terminal
-- Tidak menargetkan multi-bahasa pemrograman dulu di v1 — fokus Python
-- Remote/cloud model fallback
-- Multi-user / auth
-- GUI
+- Multi-user / SaaS product
+- Heavy cloud reasoning replacement
+- Visual GUI IDE
+- Multi-language runtime simultaneously in v1 (primary focus Python)
 features: []
 decisions: []
 domain_concepts: []
 roadmap:
-- Dinggo memperbarui Short-Term Memory & Code Graph internal.
+- Production Packaging & Build Engine
+- Independent Code Reviewer
+- Multi-worker Task Scheduling
 coding_standards: []
 documentation:
 - README.md
@@ -41,18 +40,17 @@ documentation:
 - docs/06-Architecture.md
 - docs/07-TechnicalDecisions.md
 - docs/08-design.md
-- docs/Benchmarking Performance and Abstraction.md
 - docs/README_KESIAPAN.md
 - docs/rfc/RFC-001.md
+- docs/rfc/rfc-oo2.md
+- docs/upgrade-dinggo.md
+- docs/workflow-design- upgrade.md
 project_state:
-  version: 0.1.0
-  current_phase: Unspecified
-  active_priority: Unspecified
+  version: 0.3.0
+  current_phase: Ready
+  active_priority: High
   recommended_next_steps: []
   recent_changes: []
   known_issues: []
 references: []
-validation_issues:
-- Project state has no explicit current phase.
-- Project state has no explicit active priority.
-- Project state has no recommended next steps.
+validation_issues: []

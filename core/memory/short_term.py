@@ -63,7 +63,7 @@ class ShortTermMemory:
     def get_formatted_context(self) -> str:
         """Formats recent history for LLM prompt context injection."""
         if not self.history:
-            return "Belum ada riwayat percakapan sebelumnya."
+            return "No previous conversation history."
 
         formatted_lines = []
         for idx, turn in enumerate(self.history, 1):
@@ -74,11 +74,11 @@ class ShortTermMemory:
             resp = turn.get("direct_response")
             exec_sum = turn.get("execution_summary")
 
-            line = f"Turn {idx}:\n  - User Prompt: \"{prompt}\"\n  - Category: {cat}\n  - Maksud: {summary}\n  - Scope: {scope}"
+            line = f"Turn {idx}:\n  - User Prompt: \"{prompt}\"\n  - Category: {cat}\n  - Intent: {summary}\n  - Scope: {scope}"
             if resp:
-                line += f"\n  - Respon: \"{resp}\""
+                line += f"\n  - Response: \"{resp}\""
             if exec_sum:
-                line += f"\n  - Hasil Eksekusi: {exec_sum}"
+                line += f"\n  - Execution Result: {exec_sum}"
 
             formatted_lines.append(line)
 

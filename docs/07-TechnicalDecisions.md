@@ -1,101 +1,76 @@
 # 07 - Technical Decisions
 
-Setiap keputusan dicatat dengan format: **Keputusan → Alasan → Alternatif yang
-dipertimbangkan → Kapan harus di-revisit.**
+Each decision is structured as: **Decision → Rationale → Alternatives Considered → When to Revisit.**
 
 ---
 
-## TD-001: Ollama sebagai Model Runtime
+## TD-001: Ollama as Local Model Runtime
 
-**Keputusan:** Pakai Ollama buat serve semua model lokal.
+**Decision:** Use Ollama to serve all local LLMs via REST API.
 
-**Alasan:** Sudah dipakai di project sebelumnya (Bop), API sederhana (REST lokal),
-support model management (pull/stop/list) tanpa setup manual llama.cpp.
+**Rationale:** Standardized local REST API, robust model lifecycle management (`pull`, `stop`, `list`, `ps`), cross-platform support without requiring manual `llama.cpp` compilation.
 
-**Alternatif:** llama.cpp langsung, LM Studio (GUI-based, kurang cocok buat
-diintegrasikan ke script Python).
+**Alternatives:** Direct `llama.cpp` binary binding, LM Studio.
 
-**Revisit kalau:** butuh fitur yang Ollama belum support (misal batching request
-paralel yang efisien).
+**Revisit if:** Specific advanced features (e.g. custom speculative decoding or specialized batching pipelines) become necessary.
 
 ---
 
-## TD-002: Orkestrasi 3 Model Terpisah (bukan 1 model besar)
+## TD-002: 3-Layer Specialized Model Orchestration
 
-**Keputusan:** Pisah tugas ke 3 model spesialis — intent parsing, planning/tool-call,
-codegen — bukan 1 model serba bisa.
+**Decision:** Separate core responsibilities across 3 specialized models (Intent Parsing, Planning/DAG, Codegen) rather than a single general-purpose model.
 
-**Alasan:** Model kecil (<4B) yang di-training/dioptimalkan spesifik buat 1 tugas
-(misal Qwen2.5-Coder buat kode) secara empiris ngalahin model general size sama di
-tugas itu. Tool-calling khususnya sensitif ke training data, bukan cuma parameter
-count — model 4B yang bagus di tool-calling bisa ngalahin model 18-25GB yang bukan
-spesialis.
+**Rationale:** Small models (<4B) trained specifically for a single domain (such as `Qwen2.5-Coder` for code synthesis) consistently outperform general models of the same parameter scale on specialized tasks. Tool calling and structured schema generation are sensitive to domain tuning.
 
-**Alternatif:** 1 model besar (misal Llama3.1 8B) buat semua tugas — lebih simpel
-tapi kurang presisi per-tugas, dan tetep berat di RAM kalau mau kualitas setara.
+**Alternatives:** Single large model (e.g. Llama 3.1 8B) for all tasks — simpler architecture but requires more memory and yields lower per-task precision.
 
-**Revisit kalau:** muncul model <4B yang all-rounder-nya udah cukup kuat buat gantiin
-2-3 layer sekaligus tanpa turun kualitas.
+**Revisit if:** An all-in-one <4B model emerges that achieves equal or better precision across all 3 phases simultaneously.
 
 ---
 
-## TD-003: Pemilihan Model per Layer
+## TD-003: Model Selection per Layer
 
-| Layer | Model | Alasan Singkat |
-|---|---|---|
-| Intent Parsing | Gemma-SEA-LION-V4.5-E2B-IT | NLU Bahasa Indonesia casual paling natural, sudah tersedia lokal |
-| Planner/Tool-call | Qwen3.5-4B | Skor tool-calling tertinggi di kelas <4B, thinking mode, context 262K |
-| Codegen | Qwen2.5-Coder-3b | Spesialis kode, ringan, sudah tersedia lokal (tinggal ganti dari Qwen2.5:3b general) |
-| Fallback (opsional) | Llama3.1 8B | Reasoning lebih dalam buat task berat non-real-time |
+| Layer | Model | Rationale |
+| :--- | :--- | :--- |
+| **Intent Parsing** | Gemma-SEA-LION-V4.5-E2B-IT | Excellent casual multilingual/SEA language understanding, fast inference. |
+| **Planner / DAG** | Qwen3.5-4B | State-of-the-art tool-calling & reasoning in the <4B class, thinking mode, 262K context. |
+| **Codegen** | Qwen2.5-Coder-3b | Code generation specialist, lightweight, clean syntax generation. |
+| **Fallback** | Llama 3.1 8B | Deep reasoning for heavy offline batch tasks. |
 
-**Revisit kalau:** ada model baru yang lebih kecil/cepat dengan skor tool-calling
-setara atau lebih baik dari Qwen3.5-4B.
-
----
-
-## TD-004: Sequential Model Loading (bukan concurrent)
-
-**Keputusan:** Model dijalankan bergantian sesuai fase aktif, tidak sekaligus 3-3nya
-resident di RAM.
-
-**Alasan:** Total RAM 16GB tanpa GPU discrete. 3 model sekaligus (4.9 + ~4 + 1.9 GB)
-mepet/berisiko OOM kalau ditambah overhead OS + aplikasi lain.
-
-**Alternatif:** Load semua sekaligus — cuma feasible kalau upgrade RAM atau pindah ke
-GPU dengan VRAM cukup.
-
-**Revisit kalau:** upgrade hardware, atau kalau latency switching model jadi bottleneck
-signifikan.
+**Revisit if:** New lightweight models demonstrate higher benchmark scores on task graph generation and code synthesis.
 
 ---
 
-## TD-005: Python sebagai Bahasa Implementasi
+## TD-004: Sequential Model Loading (Memory Safety)
 
-**Keputusan:** Seluruh CLI (`core/`, `tools/`, `cli/`) ditulis Python.
+**Decision:** Models transition sequentially per active lifecycle phase rather than remaining concurrently resident in VRAM/RAM.
 
-**Alasan:** Konsisten dengan target codegen (Python), ekosistem library CLI/TUI
-matang (`rich`, `prompt_toolkit`, `textual`), dan familiar dari project-project
-sebelumnya.
+**Rationale:** Standard consumer laptops and workstations (16GB RAM, integrated graphics) risk Out-Of-Memory (OOM) crashes if 3 models (4.9GB + 4GB + 2GB) run concurrently alongside OS processes.
 
----
+**Alternatives:** Concurrent residency — feasible on high-end systems with dedicated GPU VRAM (>=16GB).
 
-## TD-006: `rich` + `prompt_toolkit` buat Terminal UI
-
-**Keputusan:** Pakai `rich` buat rendering (panel, syntax highlight, diff view,
-spinner) dan `prompt_toolkit` buat input interaktif.
-
-**Alasan:** Kombinasi paling umum & stabil buat bikin CLI IDE kelas Codex/Claude
-Code-style, dokumentasi lengkap, tidak perlu reinvent wheel.
-
-**Alternatif:** `textual` (kalau nanti mau full TUI dengan multi-pane) — bisa jadi
-upgrade path v2, dicatat di `09-Roadmap.md` kalau relevan.
+**Revisit if:** User environment hardware is upgraded or switching latency becomes a critical bottleneck.
 
 ---
 
-## TD-007: Environment Variables via `.env`
+## TD-005: Python as Primary Implementation Language
 
-**Keputusan:** Semua config yang bisa berubah (base URL Ollama, nama model per
-layer, dll) taruh di `.env`, bukan hardcode.
+**Decision:** Core orchestrator, CLI, tools, and test suites are written in Python.
 
-**Alasan:** Memudahkan swap model/endpoint tanpa ubah kode — selaras prinsip
-modular & fleksibel di `01-Vision.md`.
+**Rationale:** Rich CLI/TUI ecosystem (`rich`, `prompt_toolkit`, `pydantic`, `pytest`), strong native AST parsing capabilities for code validation, and high extensibility.
+
+---
+
+## TD-006: `rich` + `prompt_toolkit` for Terminal Interface
+
+**Decision:** Use `rich` for formatted rendering (panels, syntax highlighting, diffs, live status timers) and `prompt_toolkit` for interactive prompt history and autocomplete.
+
+**Rationale:** Industry standard for developer CLI tools (similar to Claude Code and Codex CLI), stable, cross-platform, and fully customizable.
+
+---
+
+## TD-007: Dynamic Configuration via `.env` and Settings
+
+**Decision:** Externalize runtime configurations (Ollama base URL, model overrides, thread allocations) to `.env` and Dinggo Settings rather than hardcoded constants.
+
+**Rationale:** Enables zero-code model swapping and environment-specific overrides.

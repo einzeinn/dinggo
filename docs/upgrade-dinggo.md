@@ -2,17 +2,17 @@
 
 ## 1. Vision
 
-**Dinggo** adalah AI Product Factory yang mengubah spesifikasi produk menjadi software yang siap digunakan.
+**Dinggo** is an AI Product Factory that transforms product specifications into production-ready software.
 
-Dinggo bukan sekadar AI coding assistant dan bukan chatbot untuk membuat aplikasi melalui percakapan.
+Dinggo is not just an AI coding assistant and not a conversational chat-to-code bot.
 
-Dinggo menggunakan pendekatan **specification-driven development**, di mana pengguna mendefinisikan produk melalui file spesifikasi yang menjadi source of truth selama seluruh proses pembangunan.
+Dinggo uses a **specification-driven development** approach, where users define products through specification documents that act as the source of truth throughout the entire build lifecycle.
 
 ### Core Principle
 
 > **Define the product once. Let Dinggo build it.**
 
-Input utama Dinggo bukan chat, melainkan kumpulan dokumen terstruktur seperti:
+The primary input to Dinggo is not chat prompts, but a collection of structured specification documents such as:
 
 * Product Requirements Document
 * Functional Requirements
@@ -71,7 +71,7 @@ Product Specification
   INDEPENDENT REVIEW
 ```
 
-Dinggo berfokus pada **production pipeline**, bukan sekadar generation.
+Dinggo focuses on a **production pipeline**, rather than mere raw code generation.
 
 ---
 
@@ -181,7 +181,7 @@ Menjelaskan:
 
 Menjelaskan requirement yang dapat diverifikasi.
 
-Contoh:
+Example:
 
 ```yaml
 requirements:
@@ -238,7 +238,7 @@ Validation
 Review
 ```
 
-Contoh:
+Example:
 
 ```text
 INV-001
@@ -271,7 +271,7 @@ PLAN
 └── Validation Strategy
 ```
 
-Contoh:
+Example:
 
 ```text
 TASK-001
@@ -299,9 +299,9 @@ Planner menghasilkan **task graph**, bukan sekadar daftar TODO.
 
 # 7. Approval Gate 1
 
-Sebelum implementation dimulai, Dinggo menampilkan execution plan.
+Before implementation begins, Dinggo displays the execution plan.
 
-Contoh:
+Example:
 
 ```text
 ╭──────────────────────────────────────╮
@@ -319,22 +319,22 @@ Contoh:
 ╰──────────────────────────────────────╯
 ```
 
-User dapat:
+Users can:
 
 * approve
 * reject
 * modify specification
 * regenerate plan
 
-Dinggo **tidak boleh melakukan implementation sebelum approval** dalam default mode.
+Dinggo **must not begin implementation before explicit approval** in default mode.
 
 ---
 
 # 8. Phase 3: IMPLEMENT
 
-Setelah plan disetujui, Dinggo menjalankan task graph.
+Once the plan is approved, Dinggo executes the task graph.
 
-Implementation dapat menggunakan beberapa AI worker.
+Implementation can utilize specialized AI workers.
 
 ```text
                     DINGGO
@@ -349,17 +349,17 @@ Implementation dapat menggunakan beberapa AI worker.
                   Integration
 ```
 
-Worker dapat diganti berdasarkan kebutuhan model.
+Workers can be swapped based on model requirements.
 
-Dinggo bertindak sebagai **orchestrator**, bukan harus menjadi model tunggal.
+Dinggo acts as the **orchestrator**, rather than being tied to a single monolithic model.
 
 ---
 
 # 9. Phase 4: TEST
 
-Setelah implementation selesai, Dinggo menjalankan automated testing.
+After implementation completes, Dinggo executes automated testing.
 
-Testing dapat mencakup:
+Testing can encompass:
 
 * unit test
 * integration test
@@ -370,7 +370,7 @@ Testing dapat mencakup:
 * build validation
 * dependency validation
 
-Contoh:
+Example:
 
 ```text
 TEST RESULT
@@ -389,7 +389,7 @@ Total: 174/174
 
 # 10. Self-Repair Loop
 
-Jika test gagal, Dinggo tidak langsung berhenti.
+If tests fail, Dinggo does not immediately abort.
 
 ```text
 TEST
@@ -407,9 +407,9 @@ PATCH
 TEST
 ```
 
-Loop memiliki batas maksimum untuk mencegah infinite execution.
+The repair loop enforces a maximum attempt threshold to prevent infinite execution.
 
-Contoh:
+Example:
 
 ```yaml
 repair:
@@ -417,7 +417,7 @@ repair:
   max_attempts: 5
 ```
 
-Jika gagal setelah batas:
+If failures persist after the retry threshold:
 
 ```text
 REPAIR FAILED
@@ -436,9 +436,9 @@ Human intervention required.
 
 # 11. Phase 5: VALIDATION
 
-Testing hanya memastikan software berfungsi secara teknis.
+Testing verifies that the software functions technically.
 
-Validation memastikan software sesuai dengan specification.
+Validation verifies that the software satisfies the product specification.
 
 ```text
 SPECIFICATION
@@ -455,7 +455,7 @@ Traceability Check
       └── Feature completeness
 ```
 
-Contoh:
+Example:
 
 ```text
 VALIDATION
@@ -477,7 +477,7 @@ Status:
 
 # 12. Approval Gate 2
 
-Sebelum build final:
+Prior to final build:
 
 ```text
 ╭──────────────────────────────────────╮
@@ -496,9 +496,9 @@ Sebelum build final:
 
 # 13. Phase 6: BUILD
 
-Dinggo menghasilkan production artifacts.
+Dinggo generates production artifacts.
 
-Contoh:
+Example:
 
 ```text
 BUILD
@@ -510,13 +510,13 @@ BUILD
 └── Deployment Configuration
 ```
 
-Build harus dapat direproduksi dari specification dan project state.
+Builds must be reproducible from specifications and persistent project state.
 
 ---
 
 # 14. Approval Gate 3
 
-Final approval sebelum export/deployment.
+Final approval before export or deployment.
 
 ```text
 FINAL REVIEW
@@ -536,7 +536,7 @@ Ready for export.
 
 # 15. Phase 7: EXPORT
 
-Dinggo dapat menghasilkan:
+Dinggo can generate:
 
 ```text
 Web Application
@@ -551,7 +551,7 @@ Internal Tool
 Microservice
 ```
 
-Export dapat berupa:
+Exports can include:
 
 ```text
 dist/
@@ -566,9 +566,9 @@ dist/
 
 # 16. Codex as Independent Reviewer
 
-Dinggo tidak menjadi satu-satunya pihak yang menentukan kualitas hasil.
+Dinggo is not the sole entity judging the quality of output.
 
-Setelah export/build selesai, Dinggo dapat memanggil **Codex sebagai independent reviewer**.
+After export/build completes, Dinggo invokes an **independent reviewer engine** for code audit.
 
 ```text
              DINGGO
@@ -589,15 +589,15 @@ Setelah export/build selesai, Dinggo dapat memanggil **Codex sebagai independent
            REVIEW REPORT
 ```
 
-Codex harus diposisikan sebagai **reviewer**, bukan bagian dari implementation worker yang sama.
+The reviewer is isolated as an independent auditor, separate from implementation workers.
 
-Tujuannya mengurangi bias dari self-evaluation.
+The goal is to eliminate self-evaluation bias.
 
 ---
 
 # 17. Review Categories
 
-Codex reviewer dapat memeriksa:
+The reviewer inspects:
 
 ### Requirement Review
 
@@ -634,9 +634,9 @@ Codex reviewer dapat memeriksa:
 
 # 18. Machine-Readable Review Result
 
-Review harus menghasilkan format yang dapat diproses Dinggo.
+The review outputs a structured, machine-readable format:
 
-Contoh:
+Example:
 
 ```yaml
 review:
@@ -672,7 +672,7 @@ findings:
 
 # 19. Review Repair Loop
 
-Jika Codex menemukan masalah:
+If findings or issues are detected:
 
 ```text
 CODEX
@@ -690,19 +690,19 @@ VALIDATION
 CODEX REVIEW
 ```
 
-Pipeline hanya dianggap selesai setelah reviewer memberikan:
+The pipeline is marked complete only when the reviewer returns:
 
 ```text
 PASS
 ```
 
-atau finding yang tersisa berada di bawah threshold yang telah ditentukan.
+or remaining findings are within accepted severity thresholds.
 
 ---
 
 # 20. Multi-Agent Architecture
 
-Dinggo harus bersifat model-agnostic.
+Dinggo is model-agnostic.
 
 ```text
                     DINGGO ORCHESTRATOR
@@ -719,37 +719,37 @@ Dinggo harus bersifat model-agnostic.
                          / Codex
 ```
 
-Setiap agent memiliki responsibility yang jelas.
+Each agent possesses clear, decoupled responsibilities.
 
 ### Planner
 
-Mengubah specification menjadi execution plan.
+Transforms specifications into an execution plan.
 
 ### Implementation Agent
 
-Menulis dan memodifikasi source code.
+Generates and modifies source code.
 
 ### Test Agent
 
-Membuat dan menjalankan test.
+Authors and executes tests.
 
 ### Validation Agent
 
-Memverifikasi requirement.
+Verifies requirement traceability.
 
 ### Repair Agent
 
-Memperbaiki failure.
+Repairs failures via automated patching.
 
 ### Reviewer
 
-Melakukan independent quality assessment.
+Conducts independent quality and security assessment.
 
 ---
 
 # 21. Contextix Integration
 
-Contextix menjadi **project intelligence layer** untuk Dinggo.
+Contextix acts as the **project intelligence layer** for Dinggo.
 
 ```text
                  SPECIFICATION
@@ -766,7 +766,7 @@ Contextix menjadi **project intelligence layer** untuk Dinggo.
                   DINGGO PLAN
 ```
 
-Contextix bertanggung jawab terhadap:
+Contextix is responsible for:
 
 * parsing project documentation
 * context generation
@@ -775,7 +775,7 @@ Contextix bertanggung jawab terhadap:
 * repository indexing
 * structured project knowledge
 
-Dinggo bertanggung jawab terhadap:
+Dinggo is responsible for:
 
 * planning
 * execution
@@ -784,7 +784,7 @@ Dinggo bertanggung jawab terhadap:
 * building
 * export
 
-Dengan demikian:
+Thus:
 
 > **Contextix understands. Dinggo executes.**
 
@@ -792,7 +792,7 @@ Dengan demikian:
 
 # 22. Source of Truth
 
-Dinggo memiliki hierarchy source of truth:
+Dinggo enforces a source of truth hierarchy:
 
 ```text
 1. Specification
@@ -802,9 +802,9 @@ Dinggo memiliki hierarchy source of truth:
 5. Generated Artifacts
 ```
 
-Jika source code bertentangan dengan specification, specification menjadi acuan utama.
+If source code conflicts with specifications, specifications take precedence.
 
-Jika implementation membutuhkan perubahan terhadap specification, Dinggo harus meminta approval atau memperbarui specification melalui explicit change process.
+If implementation requires altering specifications, Dinggo must request human approval or update specifications via an explicit change process.
 
 ---
 
@@ -816,7 +816,7 @@ Jika implementation membutuhkan perubahan terhadap specification, Dinggo harus m
 dinggo execute
 ```
 
-Memerlukan approval pada setiap gate.
+Requires approval at each gate.
 
 ### Autonomous Mode
 
@@ -824,7 +824,7 @@ Memerlukan approval pada setiap gate.
 dinggo execute --autonomous
 ```
 
-Dinggo dapat melewati approval tertentu berdasarkan policy.
+Dinggo can bypass specific gates based on configured policy.
 
 ### Governed Mode
 
@@ -832,7 +832,7 @@ Dinggo dapat melewati approval tertentu berdasarkan policy.
 dinggo execute --policy enterprise.yaml
 ```
 
-Contoh:
+Example:
 
 ```yaml
 approval:
@@ -865,13 +865,13 @@ dinggo review
 dinggo export
 ```
 
-Atau one-shot pipeline:
+Or one-shot pipeline:
 
 ```bash
 dinggo execute
 ```
 
-Dengan pipeline:
+With pipeline:
 
 ```text
 SPEC
@@ -899,25 +899,25 @@ CODEX REVIEW
 
 # 25. Long-Term Vision
 
-Dinggo berkembang dari:
+Dinggo evolves from:
 
 ```text
 AI Coding CLI
 ```
 
-menjadi:
+into:
 
 ```text
 AI Product Engineering Engine
 ```
 
-dan akhirnya:
+and ultimately:
 
 ```text
 AI PRODUCT FACTORY
 ```
 
-Tujuan akhirnya adalah memungkinkan seseorang mendefinisikan sebuah produk secara jelas melalui specification, lalu Dinggo menangani sebagian besar proses engineering secara autonomous dengan tetap memiliki:
+The ultimate goal is enabling developers to define a product clearly via specifications, with Dinggo handling the engineering process autonomously while retaining:
 
 * human approval
 * deterministic validation

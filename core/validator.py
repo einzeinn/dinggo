@@ -28,8 +28,8 @@ class SemanticValidator:
             if not os.path.exists(target_path):
                 return {
                     "valid": False,
-                    "reason": f"File '{target_path}' tidak ditemukan di disk.",
-                    "suggested_action": "Buat ulang file."
+                    "reason": f"File '{target_path}' not found on disk.",
+                    "suggested_action": "Recreate file."
                 }
             try:
                 with open(target_path, "r", encoding="utf-8", errors="ignore") as f:
@@ -37,8 +37,8 @@ class SemanticValidator:
             except Exception as e:
                 return {
                     "valid": False,
-                    "reason": f"Gagal membaca file '{target_path}': {str(e)}",
-                    "suggested_action": "Tulis ulang file."
+                    "reason": f"Failed to read file '{target_path}': {str(e)}",
+                    "suggested_action": "Rewrite file."
                 }
 
         # 1. Validation for Markdown files (.md, .markdown)
@@ -54,8 +54,8 @@ class SemanticValidator:
                 if re.search(pattern, content):
                     return {
                         "valid": False,
-                        "reason": f"File Markdown '{rel_path}' terdeteksi berisi kode script Python ({pattern}) bukannya sintaks Markdown murni.",
-                        "suggested_action": "Hasilkan ulang HANYA konten Markdown murni tanpa script Python."
+                        "reason": f"Markdown file '{rel_path}' contains Python script constructs ({pattern}) instead of pure Markdown.",
+                        "suggested_action": "Regenerate ONLY pure Markdown content without Python scripts."
                     }
 
         # 2. Validation for Python files (.py)
@@ -65,8 +65,8 @@ class SemanticValidator:
             except SyntaxError as e:
                 return {
                     "valid": False,
-                    "reason": f"File Python '{rel_path}' memiliki kesalahan sintaksis: baris {e.lineno}: {e.msg}",
-                    "suggested_action": "Perbaiki sintaksis Python."
+                    "reason": f"Python file '{rel_path}' has syntax error: line {e.lineno}: {e.msg}",
+                    "suggested_action": "Fix Python syntax."
                 }
 
         # 3. Validation for JSON files (.json)
@@ -76,8 +76,8 @@ class SemanticValidator:
             except json.JSONDecodeError as e:
                 return {
                     "valid": False,
-                    "reason": f"File JSON '{rel_path}' tidak valid: {str(e)}",
-                    "suggested_action": "Perbaiki format JSON."
+                    "reason": f"JSON file '{rel_path}' is invalid: {str(e)}",
+                    "suggested_action": "Fix JSON format."
                 }
 
         # Check for hardcoded Windows absolute path leaks like "C:\\AI\\..." in non-python files
@@ -85,13 +85,13 @@ class SemanticValidator:
             if re.search(r"[A-Z]:\\[^\n]+", content):
                 return {
                     "valid": True,  # Non-fatal warning
-                    "reason": f"Peringatan: File '{rel_path}' terdeteksi mengandung path absolut Windows.",
-                    "suggested_action": "Gunakan path relatif."
+                    "reason": f"Warning: File '{rel_path}' contains Windows absolute paths.",
+                    "suggested_action": "Use relative paths."
                 }
 
         return {
             "valid": True,
-            "reason": f"File '{rel_path}' valid secara semantik.",
+            "reason": f"File '{rel_path}' is semantically valid.",
             "suggested_action": None
         }
 
@@ -107,7 +107,7 @@ class SemanticValidator:
         if ext == ".py":
             try:
                 ast.parse(content, filename=rel_path)
-                return {"valid": True, "type": "valid", "file": rel_path, "line": None, "column": None, "message": "Syntax Python valid."}
+                return {"valid": True, "type": "valid", "file": rel_path, "line": None, "column": None, "message": "Valid Python syntax."}
             except SyntaxError as e:
                 return {
                     "valid": False,
@@ -115,7 +115,7 @@ class SemanticValidator:
                     "file": rel_path,
                     "line": e.lineno or 1,
                     "column": e.offset or 1,
-                    "message": f"SyntaxError di baris {e.lineno or 1}, kolom {e.offset or 1}: {e.msg}"
+                    "message": f"SyntaxError at line {e.lineno or 1}, column {e.offset or 1}: {e.msg}"
                 }
             except Exception as ex:
                 return {
@@ -130,7 +130,7 @@ class SemanticValidator:
         elif ext == ".json":
             try:
                 json.loads(content)
-                return {"valid": True, "type": "valid", "file": rel_path, "line": None, "column": None, "message": "JSON valid."}
+                return {"valid": True, "type": "valid", "file": rel_path, "line": None, "column": None, "message": "Valid JSON."}
             except json.JSONDecodeError as e:
                 return {
                     "valid": False,
@@ -138,14 +138,14 @@ class SemanticValidator:
                     "file": rel_path,
                     "line": e.lineno or 1,
                     "column": e.colno or 1,
-                    "message": f"JSONDecodeError di baris {e.lineno or 1}, kolom {e.colno or 1}: {e.msg}"
+                    "message": f"JSONDecodeError at line {e.lineno or 1}, column {e.colno or 1}: {e.msg}"
                 }
 
         elif ext in (".yaml", ".yml"):
             try:
                 import yaml
                 yaml.safe_load(content)
-                return {"valid": True, "type": "valid", "file": rel_path, "line": None, "column": None, "message": "YAML valid."}
+                return {"valid": True, "type": "valid", "file": rel_path, "line": None, "column": None, "message": "Valid YAML."}
             except Exception as e:
                 line = getattr(e, "problem_mark", None)
                 lineno = line.line + 1 if line else 1
@@ -156,8 +156,8 @@ class SemanticValidator:
                     "file": rel_path,
                     "line": lineno,
                     "column": colno,
-                    "message": f"YAMLError di baris {lineno}, kolom {colno}: {str(e)}"
+                    "message": f"YAMLError at line {lineno}, column {colno}: {str(e)}"
                 }
 
         # Unsupported file types (e.g. .md, .txt) default to valid for syntax check
-        return {"valid": True, "type": "valid", "file": rel_path, "line": None, "column": None, "message": "Format file tidak memerlukan validasi sintaks khusus."}
+        return {"valid": True, "type": "valid", "file": rel_path, "line": None, "column": None, "message": "File format does not require special syntax validation."}
